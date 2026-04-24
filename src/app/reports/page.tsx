@@ -8,6 +8,8 @@ export default async function ReportsPage() {
     .select('*, customer:Customer(*), payments:Payment(*)');
 
   const invoices = (invoicesData || []) as any[];
+  const dbError = error ? error.message : null;
+
 
 
   // Computed data for the summary table
@@ -47,6 +49,12 @@ export default async function ReportsPage() {
           </Link>
         </div>
       </header>
+
+      {dbError && (
+        <div style={{ padding: '1rem', background: '#fee2e2', color: '#b91c1c', borderRadius: '8px', marginBottom: '1.5rem', border: '1px solid #fecaca' }}>
+          <strong>Database Error:</strong> {dbError}
+        </div>
+      )}
 
       <div className="stats-grid">
         <div className="card stat-card">
