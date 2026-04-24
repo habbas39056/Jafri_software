@@ -133,8 +133,8 @@ export default function GDNForm({ pendingPOs }: { pendingPOs: PO[] }) {
                 style={{ padding: '0.75rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'white' }}
               >
                 <option value="">-- Select PO --</option>
-                {pendingPOs.map(po => (
-                  <option key={po.id} value={po.id}>{po.po_number} - {po.customer.customer_name}</option>
+                {pendingPOs.map((po: any) => (
+                  <option key={po.id} value={po.id}>{po.po_number} - {po.customer.customer_name} [{po.status}]</option>
                 ))}
               </select>
             </div>

@@ -8,7 +8,7 @@ export async function getPendingPurchaseOrders() {
   const { data, error } = await supabase
     .from('PurchaseOrder')
     .select('*, customer:Customer(*), items:POItem(*, product:Product(*)), production:ProductionTracking(*)')
-    .neq('status', 'Completed');
+    .order('created_at', { ascending: false });
 
   if (error) {
     console.error('Error fetching pending POs:', error);
