@@ -414,7 +414,7 @@ export default async function InvoiceDetailsPage({ params }: { params: Promise<{
               {/* Table Footer Total Row */}
               <tr style={{ fontWeight: 'bold' }}>
                 <td style={{ borderRight: 'none' }}>Total</td>
-                <td style={{ textAlign: 'center' }}>{invoice.items.reduce((sum, i) => sum + i.quantity, 0)}</td>
+                <td style={{ textAlign: 'center' }}>{invoice.items.reduce((sum: number, i: any) => sum + i.quantity, 0)}</td>
                 <td style={{ borderLeft: 'none' }} colSpan={2}></td>
                 <td style={{ textAlign: 'right' }}>{invoice.subtotal.toLocaleString(undefined, { minimumFractionDigits: 0 })}</td>
                 <td style={{ textAlign: 'right' }}>{invoice.gst_amount.toLocaleString(undefined, { minimumFractionDigits: 1 })}</td>

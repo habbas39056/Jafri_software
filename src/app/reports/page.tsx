@@ -12,7 +12,7 @@ export default async function ReportsPage() {
 
   // Computed data for the summary table
   const summary = invoices.map(inv => {
-    const received = inv.payments.reduce((acc, p) => acc + p.amount_paid, 0);
+    const received = inv.payments.reduce((acc: number, p: any) => acc + p.amount_paid, 0);
     const balance = inv.total_amount - received;
     const dueDate = new Date(inv.invoice_date);
     dueDate.setDate(dueDate.getDate() + 30); // Assume 30 days terms
@@ -55,7 +55,7 @@ export default async function ReportsPage() {
           </div>
           <div className="stat-info">
             <h3>Total Receivables</h3>
-            <p>PKR {summary.reduce((acc, s) => acc + s.total, 0).toLocaleString()}</p>
+            <p>PKR {summary.reduce((acc: number, s: any) => acc + s.total, 0).toLocaleString()}</p>
           </div>
         </div>
         <div className="card stat-card">
@@ -64,7 +64,7 @@ export default async function ReportsPage() {
           </div>
           <div className="stat-info">
             <h3>Total Received</h3>
-            <p>PKR {summary.reduce((acc, s) => acc + s.received, 0).toLocaleString()}</p>
+            <p>PKR {summary.reduce((acc: number, s: any) => acc + s.received, 0).toLocaleString()}</p>
           </div>
         </div>
         <div className="card stat-card">
@@ -73,7 +73,7 @@ export default async function ReportsPage() {
           </div>
           <div className="stat-info">
             <h3>Total Balance</h3>
-            <p>PKR {summary.reduce((acc, s) => acc + s.balance, 0).toLocaleString()}</p>
+            <p>PKR {summary.reduce((acc: number, s: any) => acc + s.balance, 0).toLocaleString()}</p>
           </div>
         </div>
       </div>
