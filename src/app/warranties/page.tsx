@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma';
+import { supabase } from '@/lib/supabase';
 import { Plus, Search, ShieldCheck, Download, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import WarrantySearch from '@/components/WarrantySearch';
@@ -11,24 +11,23 @@ export default async function WarrantiesPage({
   const resolvedSearchParams = await searchParams;
   const query = resolvedSearchParams?.q || '';
 
-  const warranties = await (prisma.warranty as any).findMany({
-    where: query ? {
-      OR: [
-        { warranty_number: { contains: query } },
-        { customer: { customer_name: { contains: query } } },
-        { po: { po_number: { contains: query } } },
-        { invoice: { po: { po_number: { contains: query } } } }
-      ]
-    } : {},
-    include: {
-      customer: true,
-      invoice: {
-        include: { po: true }
-      },
-      po: true
-    },
-    orderBy: { id: 'desc' }
-  }) as any[];
+  let warranties: any[] = [];
+  try {
+    let supabaseQuery = supabase
+      .from('Warranty')
+      .select('*, customer:Customer(*), invoice:Invoice(*, po:PurchaseOrder(*)), po:PurchaseOrder(*)')
+      .order('id', { ascending: false });
+
+    if (query) {
+      supabaseQuery = supabaseQuery.or(`warranty_number.ilike.%${query}%,customer(customer_name).ilike.%${query}%,po(po_number).ilike.%${query}%`);
+    }
+
+    const { data, error } = await supabaseQuery;
+    if (error) throw error;
+    warranties = data || [];
+  } catch (error) {
+    console.error('Supabase error in WarrantiesPage:', error);
+  }
 
   return (
     <div className="animate-fade-in">

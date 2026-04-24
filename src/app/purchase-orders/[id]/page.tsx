@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma';
+import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { ArrowLeft, Truck, FileText } from 'lucide-react';
 import { notFound } from 'next/navigation';
@@ -12,24 +12,22 @@ export default async function PODetailsPage({ params }: { params: Promise<{ id: 
     notFound();
   }
 
-  const po = await prisma.purchaseOrder.findUnique({
-    where: { id },
-    include: {
-      customer: true,
-      items: {
-        include: { product: true }
-      },
-      production: true,
-      challans: true,
-      invoices: true
-    }
-  });
+  const { data: po, error } = await supabase
+    .from('PurchaseOrder')
+    .select('*, customer:Customer(*), items:POItem(*, product:Product(*)), production:ProductionTracking(*), challans:Challan(*), invoices:Invoice(*)')
+    .eq('id', id)
+    .single();
+
+  if (error || !po) {
+    notFound();
+  }
+
 
   if (!po) {
     notFound();
   }
 
-  const grandTotal = po.items.reduce((sum, item) => sum + item.total_amount, 0);
+  const grandTotal = po.items.reduce((sum: number, item: any) => sum + item.total_amount, 0);
 
   return (
     <>
@@ -37,6 +35,8 @@ export default async function PODetailsPage({ params }: { params: Promise<{ id: 
         @media print {
           .web-only { display: none !important; }
           .print-only { display: block !important; }
+          .sidebar { display: none !important; }
+          .main-content { margin-left: 0 !important; padding: 0 !important; max-width: 100% !important; }
           @page { margin: 0.5cm; size: landscape; }
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           
@@ -193,7 +193,7 @@ export default async function PODetailsPage({ params }: { params: Promise<{ id: 
                 </tr>
               </thead>
               <tbody>
-                {po.items.map((item) => (
+                {po.items.map((item: any) => (
                   <tr key={item.id}>
                     <td>{item.product.product_code}</td>
                     <td style={{ fontWeight: 600 }}>{item.product.product_name}</td>
@@ -228,8 +228,8 @@ export default async function PODetailsPage({ params }: { params: Promise<{ id: 
                 </tr>
               </thead>
               <tbody>
-                {po.production.map((prod) => {
-                  const product = po.items.find(i => i.product_id === prod.product_id)?.product;
+                {po.production.map((prod: any) => {
+                  const product = po.items.find((i: any) => i.product_id === prod.product_id)?.product;
                   return (
                     <tr key={prod.id}>
                       <td style={{ fontWeight: 600 }}>{product?.product_name}</td>
@@ -293,7 +293,7 @@ export default async function PODetailsPage({ params }: { params: Promise<{ id: 
               </tr>
             </thead>
             <tbody>
-              {po.items.map((item, index) => {
+              {po.items.map((item: any, index: number) => {
                 const amount = item.total_amount;
                 const gstRate = (po.gst_percentage || 18) / 100;
                 const gst = amount * gstRate;
@@ -326,7 +326,7 @@ export default async function PODetailsPage({ params }: { params: Promise<{ id: 
               ))}
               <tr className="total-row">
                 <td colSpan={4} style={{ textAlign: 'right', paddingRight: '10px' }}>Total</td>
-                <td>{po.items.reduce((sum, item) => sum + item.quantity, 0)}</td>
+                <td>{po.items.reduce((sum: number, item: any) => sum + item.quantity, 0)}</td>
                 <td>{grandTotal}</td>
                 <td>{grandTotal * ((po.gst_percentage || 18) / 100)}</td>
                 <td>{grandTotal * (1 + ((po.gst_percentage || 18) / 100))}</td>

@@ -247,3 +247,19 @@ table tbody tr:hover {
   .nav-link { justify-content: center; padding: 1rem; }
 }
 
+@media print {
+  .sidebar {
+    display: none !important;
+  }
+  .main-content {
+    margin-left: 0 !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
+  .web-only {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+}

@@ -1,16 +1,14 @@
-import { prisma } from '@/lib/prisma';
+import { supabase } from '@/lib/supabase';
 import { ShieldCheck, Calendar, User, Search } from 'lucide-react';
 
 export default async function WarrantyPage() {
-  const warranties = await (prisma.warranty as any).findMany({
-    include: {
-      customer: true,
-      invoice: {
-        include: { items: { include: { product: true } } }
-      }
-    },
-    orderBy: { end_date: 'asc' }
-  }) as any[];
+  const { data: warrantiesData, error } = await supabase
+    .from('Warranty')
+    .select('*, customer:Customer(*), invoice:Invoice(*, items:InvoiceItem(*, product:Product(*)))')
+    .order('end_date', { ascending: true });
+
+  const warranties = (warrantiesData || []) as any[];
+
 
   return (
     <div className="animate-fade-in">

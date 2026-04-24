@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma';
+import { supabase } from '@/lib/supabase';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Printer, Download, ShieldCheck } from 'lucide-react';
@@ -10,25 +10,14 @@ export default async function WarrantyDetailsPage({ params }: { params: Promise<
 
   if (isNaN(id)) notFound();
 
-  const warranty = await prisma.warranty.findUnique({
-    where: { id },
-    include: {
-      customer: true,
-      invoice: {
-        include: {
-          items: {
-            include: { product: true }
-          },
-          po: {
-            include: {
-              challans: true
-            }
-          }
-        }
-      },
-      po: true
-    }
-  });
+  const { data: warranty, error } = await supabase
+    .from('Warranty')
+    .select('*, customer:Customer(*), invoice:Invoice(*, items:InvoiceItem(*, product:Product(*)), po:PurchaseOrder(*, challans:Challan(*))), po:PurchaseOrder(*)')
+    .eq('id', id)
+    .single();
+
+  if (error || !warranty) notFound();
+
 
   if (!warranty) notFound();
 

@@ -1,6 +1,6 @@
 'use server';
 
-import { prisma } from '@/lib/prisma';
+import { supabase } from '@/lib/supabase';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
@@ -18,16 +18,23 @@ export async function createProduct(prevState: any, formData: FormData) {
     return { error: 'Invalid unit price' };
   }
 
-  try {
-    await prisma.product.create({
-      data: {
+  const { error } = await supabase
+    .from('Product')
+    .insert([
+      {
         product_name,
         product_code,
         unit_price,
       },
-    });
-  } catch (error) {
-    return { error: 'Failed to create product. Product code might already exist.' };
+    ]);
+
+  if (error) {
+    console.error('Supabase error:', error);
+    // If it's a unique constraint violation (error code 23505 in PostgreSQL)
+    if (error.code === '23505') {
+      return { error: 'Failed to create product. Product code might already exist.' };
+    }
+    return { error: `Failed to create product: ${error.message}` };
   }
 
   revalidatePath('/products');
@@ -35,13 +42,19 @@ export async function createProduct(prevState: any, formData: FormData) {
 }
 
 export async function deleteProduct(id: number) {
-  try {
-    await prisma.product.delete({
-      where: { id },
-    });
-    revalidatePath('/products');
-    return { success: true };
-  } catch (error) {
-    return { error: 'Failed to delete product' };
+  const { error } = await supabase
+    .from('Product')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Delete product error:', error);
+    if (error.code === '23503') {
+      return { error: 'Cannot delete product because it is currently used in existing Purchase Orders, Invoices, or Delivery Challans.' };
+    }
+    return { error: `Failed to delete product: ${error.message}` };
   }
+
+  revalidatePath('/products');
+  return { success: true };
 }

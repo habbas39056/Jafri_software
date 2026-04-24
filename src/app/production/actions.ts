@@ -1,6 +1,6 @@
 'use server';
 
-import { prisma } from '@/lib/prisma';
+import { supabase } from '@/lib/supabase';
 import { revalidatePath } from 'next/cache';
 
 export async function updateProductionTracking(id: number, data: {
@@ -8,11 +8,13 @@ export async function updateProductionTracking(id: number, data: {
   rejected_qty: number;
 }) {
   try {
-    const tracking = await prisma.productionTracking.findUnique({
-      where: { id }
-    });
+    const { data: tracking, error: fetchError } = await supabase
+      .from('ProductionTracking')
+      .select('*')
+      .eq('id', id)
+      .single();
 
-    if (!tracking) {
+    if (fetchError || !tracking) {
       return { error: 'Tracking record not found' };
     }
 
@@ -25,16 +27,20 @@ export async function updateProductionTracking(id: number, data: {
       status = 'Pending';
     }
 
-    await prisma.productionTracking.update({
-      where: { id },
-      data: {
+    const { error: updateError } = await supabase
+      .from('ProductionTracking')
+      .update({
         delivered_qty: data.delivered_qty,
         rejected_qty: data.rejected_qty,
         pending_qty: pending_qty,
         status: status,
-        last_updated: new Date()
-      }
-    });
+        last_updated: new Date().toISOString()
+      })
+      .eq('id', id);
+
+    if (updateError) {
+      return { error: 'Failed to update production' };
+    }
 
     revalidatePath('/production');
     return { success: true };

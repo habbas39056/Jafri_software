@@ -1,7 +1,8 @@
-import { prisma } from '@/lib/prisma';
+import { supabase } from '@/lib/supabase';
 import { Plus, Search, FileText, Download, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 import InvoiceSearch from '@/components/InvoiceSearch';
+import InvoiceActions from '@/components/InvoiceActions';
 
 export default async function InvoicesPage({
   searchParams,
@@ -11,20 +12,23 @@ export default async function InvoicesPage({
   const resolvedSearchParams = await searchParams;
   const query = resolvedSearchParams?.q || '';
 
-  const invoices = await prisma.invoice.findMany({
-    where: query ? {
-      OR: [
-        { invoice_number: { contains: query } },
-        { customer: { customer_name: { contains: query } } },
-        { po: { po_number: { contains: query } } }
-      ]
-    } : {},
-    include: {
-      customer: true,
-      po: true
-    },
-    orderBy: { invoice_date: 'desc' }
-  });
+  let invoices: any[] = [];
+  try {
+    let supabaseQuery = supabase
+      .from('Invoice')
+      .select('*, customer:Customer(*), po:PurchaseOrder(*)')
+      .order('invoice_date', { ascending: false });
+
+    if (query) {
+      supabaseQuery = supabaseQuery.or(`invoice_number.ilike.%${query}%,customer(customer_name).ilike.%${query}%,po(po_number).ilike.%${query}%`);
+    }
+
+    const { data, error } = await supabaseQuery;
+    if (error) throw error;
+    invoices = data || [];
+  } catch (error) {
+    console.error('Supabase error in InvoicesPage:', error);
+  }
 
   return (
     <div className="animate-fade-in">
@@ -102,6 +106,7 @@ export default async function InvoicesPage({
                     <Link href={`/invoices/${invoice.id}`} className="btn" style={{ padding: '4px' }} title="Print Invoice">
                       <Download size={18} />
                     </Link>
+                    <InvoiceActions id={invoice.id} />
                   </div>
                 </td>
               </tr>

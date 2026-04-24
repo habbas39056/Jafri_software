@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma';
+import { supabase } from '@/lib/supabase';
 import { Plus, Tag } from 'lucide-react';
 import Link from 'next/link';
 import ProductSearch from '@/components/ProductSearch';
@@ -12,15 +12,23 @@ export default async function ProductsPage({
   const resolvedSearchParams = await searchParams;
   const query = resolvedSearchParams?.q || '';
 
-  const products = await prisma.product.findMany({
-    where: query ? {
-      OR: [
-        { product_name: { contains: query } },
-        { product_code: { contains: query } }
-      ]
-    } : {},
-    orderBy: { created_at: 'desc' }
-  });
+  let products: any[] = [];
+  try {
+    let supabaseQuery = supabase
+      .from('Product')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (query) {
+      supabaseQuery = supabaseQuery.or(`product_name.ilike.%${query}%,product_code.ilike.%${query}%`);
+    }
+
+    const { data, error } = await supabaseQuery;
+    if (error) throw error;
+    products = data || [];
+  } catch (error) {
+    console.error('Supabase error in ProductsPage:', error);
+  }
 
   return (
     <div className="animate-fade-in">

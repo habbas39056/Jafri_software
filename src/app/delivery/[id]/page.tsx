@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma';
+import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { notFound } from 'next/navigation';
@@ -12,16 +12,16 @@ export default async function GDNDetailsPage({ params }: { params: Promise<{ id:
     notFound();
   }
 
-  const challan = await prisma.challan.findUnique({
-    where: { id },
-    include: {
-      customer: true,
-      po: true,
-      items: {
-        include: { product: true }
-      }
-    }
-  });
+  const { data: challan, error } = await supabase
+    .from('Challan')
+    .select('*, customer:Customer(*), po:PurchaseOrder(*), items:ChallanItem(*, product:Product(*))')
+    .eq('id', id)
+    .single();
+
+  if (error || !challan) {
+    notFound();
+  }
+
 
   if (!challan) {
     notFound();
@@ -228,7 +228,7 @@ export default async function GDNDetailsPage({ params }: { params: Promise<{ id:
                 </tr>
               </thead>
               <tbody>
-                {challan.items.map((item, index) => (
+                {challan.items.map((item: any, index: number) => (
                   <tr key={item.id}>
                     <td>{index + 1}</td>
                     <td style={{ fontWeight: 600 }}>{item.product.product_name}</td>
@@ -282,7 +282,7 @@ export default async function GDNDetailsPage({ params }: { params: Promise<{ id:
                   </tr>
                   <tr>
                     <td>VENDOR NO.</td>
-                    <td>-</td>
+                    <td>{challan.customer.vendor_code || '-'}</td>
                   </tr>
                   <tr>
                     <td>DC NO.</td>
@@ -302,7 +302,7 @@ export default async function GDNDetailsPage({ params }: { params: Promise<{ id:
               </tr>
             </thead>
             <tbody>
-              {challan.items.map((item, index) => (
+              {challan.items.map((item: any, index: number) => (
                 <tr key={item.id} className={index % 2 === 0 ? "even" : "odd"}>
                   <td style={{ textAlign: 'left', paddingLeft: '15px' }}>{item.product.product_name}</td>
                   <td>{item.product.product_code || '-'}</td>

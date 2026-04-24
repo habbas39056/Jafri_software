@@ -1,16 +1,19 @@
-import { prisma } from '@/lib/prisma';
+import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import POForm from './POForm';
 
 export default async function NewPOPage() {
-  const customers = await prisma.customer.findMany({
-    orderBy: { customer_name: 'asc' }
-  });
+  const { data: customers } = await supabase
+    .from('Customer')
+    .select('*')
+    .order('customer_name', { ascending: true });
   
-  const products = await prisma.product.findMany({
-    orderBy: { product_name: 'asc' }
-  });
+  const { data: products } = await supabase
+    .from('Product')
+    .select('*')
+    .order('product_name', { ascending: true });
+
 
   return (
     <div className="animate-fade-in">
@@ -27,7 +30,7 @@ export default async function NewPOPage() {
         </div>
       </header>
 
-      <POForm customers={customers} products={products} />
+      <POForm customers={customers || []} products={products || []} />
     </div>
   );
 }

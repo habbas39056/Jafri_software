@@ -10,7 +10,10 @@ export default function CustomerActions({ id }: { id: number }) {
   const handleDelete = () => {
     if (confirm('Are you sure you want to delete this customer?')) {
       startTransition(async () => {
-        await deleteCustomer(id);
+        const result = await deleteCustomer(id);
+        if (result?.error) {
+          alert(result.error);
+        }
       });
     }
   };

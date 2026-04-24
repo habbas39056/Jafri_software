@@ -1,15 +1,15 @@
-import { prisma } from '@/lib/prisma';
+import { supabase } from '@/lib/supabase';
 import { Factory, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 import UpdateProductionBtn from '@/components/UpdateProductionBtn';
 
 export default async function ProductionPage() {
-  const tracking = await prisma.productionTracking.findMany({
-    include: {
-      po: { include: { customer: true } },
-      product: true
-    },
-    orderBy: { last_updated: 'desc' }
-  });
+  const { data: trackingData, error } = await supabase
+    .from('ProductionTracking')
+    .select('*, po:PurchaseOrder(*, customer:Customer(*)), product:Product(*)')
+    .order('last_updated', { ascending: false });
+
+  const tracking = (trackingData || []) as any[];
+
 
   return (
     <div className="animate-fade-in">

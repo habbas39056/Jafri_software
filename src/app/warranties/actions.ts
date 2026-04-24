@@ -1,21 +1,19 @@
 'use server';
 
-import { prisma } from '@/lib/prisma';
+import { supabase } from '@/lib/supabase';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 export async function getWarrantyInvoicables() {
-  // Get Invoices that don't have a warranty yet
-  return await prisma.invoice.findMany({
-    where: {},
-    include: {
-      customer: true,
-      po: true,
-      items: {
-        include: { product: true }
-      }
-    }
-  });
+  const { data, error } = await supabase
+    .from('Invoice')
+    .select('*, customer:Customer(*), po:PurchaseOrder(*), items:InvoiceItem(*, product:Product(*))');
+
+  if (error) {
+    console.error('Error fetching invoicables:', error);
+    return [];
+  }
+  return data || [];
 }
 
 export async function createWarranty(prevState: any, formData: FormData) {
@@ -29,45 +27,49 @@ export async function createWarranty(prevState: any, formData: FormData) {
 
   const invoice_id = parseInt(invoice_id_str);
 
-  try {
-    const invoice = await prisma.invoice.findUnique({
-      where: { id: invoice_id },
-      include: { customer: true, po: true }
-    });
+  const { data: invoice, error: fetchError } = await supabase
+    .from('Invoice')
+    .select('*, customer:Customer(*), po:PurchaseOrder(*)')
+    .eq('id', invoice_id)
+    .single();
 
-    if (!invoice) throw new Error('Invoice not found.');
+  if (fetchError || !invoice) {
+    return { error: 'Invoice not found.' };
+  }
 
-    const start_date = new Date();
-    const end_date = new Date();
-    end_date.setFullYear(start_date.getFullYear() + duration_years);
+  const start_date = new Date();
+  const end_date = new Date();
+  end_date.setFullYear(start_date.getFullYear() + duration_years);
 
-    // First create with a placeholder to get the ID
-    const warranty = await prisma.warranty.create({
-      data: {
+  // 1. Create with a placeholder
+  const { data: warranty, error: createError } = await supabase
+    .from('Warranty')
+    .insert([
+      {
         warranty_number: `PENDING-${Date.now()}`,
         customer_id: invoice.customer_id,
         invoice_id: invoice.id,
         po_id: invoice.po_id,
-        start_date,
-        end_date,
+        start_date: start_date.toISOString(),
+        end_date: end_date.toISOString(),
         status: 'Active',
         terms: terms || 'Standard 1 Year Warranty'
       }
-    });
+    ])
+    .select()
+    .single();
 
-    // Then update with the actual sequential number
-    await prisma.warranty.update({
-      where: { id: warranty.id },
-      data: {
-        warranty_number: `W-${warranty.id}`
-      }
-    });
-
-    revalidatePath('/warranties');
-  } catch (error: any) {
-    console.error('Warranty creation failed:', error);
-    return { error: error.message || 'Failed to create warranty.' };
+  if (createError || !warranty) {
+    console.error('Warranty creation failed:', createError);
+    return { error: 'Failed to create warranty.' };
   }
 
+  // 2. Update with the actual sequential number
+  await supabase
+    .from('Warranty')
+    .update({ warranty_number: `W-${warranty.id}` })
+    .eq('id', warranty.id);
+
+  revalidatePath('/warranties');
   redirect('/warranties');
 }

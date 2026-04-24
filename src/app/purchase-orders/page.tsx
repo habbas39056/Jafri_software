@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma';
+import { supabase } from '@/lib/supabase';
 import { Plus, User } from 'lucide-react';
 import Link from 'next/link';
 import POSearch from '@/components/POSearch';
@@ -12,21 +12,23 @@ export default async function POPage({
   const resolvedSearchParams = await searchParams;
   const query = resolvedSearchParams?.q || '';
 
-  const pos = await prisma.purchaseOrder.findMany({
-    where: query ? {
-      OR: [
-        { po_number: { contains: query } },
-        { customer: { customer_name: { contains: query } } }
-      ]
-    } : {},
-    include: {
-      customer: true,
-      items: {
-        include: { product: true }
-      }
-    },
-    orderBy: { created_at: 'desc' }
-  });
+  let pos: any[] = [];
+  try {
+    let supabaseQuery = supabase
+      .from('PurchaseOrder')
+      .select('*, customer:Customer(*), items:POItem(*, product:Product(*))')
+      .order('created_at', { ascending: false });
+
+    if (query) {
+      supabaseQuery = supabaseQuery.or(`po_number.ilike.%${query}%,customer(customer_name).ilike.%${query}%`);
+    }
+
+    const { data, error } = await supabaseQuery;
+    if (error) throw error;
+    pos = data || [];
+  } catch (error) {
+    console.error('Supabase error in POPage:', error);
+  }
 
   return (
     <div className="animate-fade-in">
@@ -55,25 +57,25 @@ export default async function POPage({
                   <User size={14} /> {po.customer.customer_name}
                 </div>
               </div>
-              <span className={`badge badge-${po.status.toLowerCase().replace(' ', '-')}`}>
-                {po.status}
+              <span className={`badge badge-${(po.status || 'Pending').toLowerCase().replace(' ', '-')}`}>
+                {po.status || 'Pending'}
               </span>
             </div>
-
+ 
             <div style={{ display: 'grid', gap: '0.5rem', marginBottom: '1.5rem', padding: '0.75rem', background: 'var(--background)', borderRadius: '8px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
                 <span style={{ color: '#64748b' }}>Date:</span>
-                <span>{new Date(po.po_date).toLocaleDateString()}</span>
+                <span>{po.po_date ? new Date(po.po_date).toLocaleDateString() : 'N/A'}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
                 <span style={{ color: '#64748b' }}>Due Date:</span>
-                <span style={{ fontWeight: 600, color: '#ef4444' }}>{new Date(po.due_date).toLocaleDateString()}</span>
+                <span style={{ fontWeight: 600, color: '#ef4444' }}>{po.due_date ? new Date(po.due_date).toLocaleDateString() : 'N/A'}</span>
               </div>
             </div>
 
             <div style={{ marginBottom: '1.5rem' }}>
               <p style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', color: '#64748b', marginBottom: '0.5rem' }}>Items</p>
-              {po.items.map(item => (
+              {po.items.map((item: any) => (
                 <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', marginBottom: '0.25rem' }}>
                   <span>{item.product.product_name} x {item.quantity}</span>
                   <span style={{ fontWeight: 600 }}>PKR {item.total_amount.toLocaleString()}</span>

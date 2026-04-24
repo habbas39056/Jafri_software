@@ -10,7 +10,10 @@ export default function ProductActions({ id }: { id: number }) {
   const handleDelete = () => {
     if (confirm('Are you sure you want to delete this product?')) {
       startTransition(async () => {
-        await deleteProduct(id);
+        const result = await deleteProduct(id);
+        if (result?.error) {
+          alert(result.error);
+        }
       });
     }
   };

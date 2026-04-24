@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma';
+import { supabase } from '@/lib/supabase';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Printer, Download } from 'lucide-react';
@@ -11,21 +11,14 @@ export default async function InvoiceDetailsPage({ params }: { params: Promise<{
 
   if (isNaN(id)) notFound();
 
-  const invoice = await prisma.invoice.findUnique({
-    where: { id },
-    include: {
-      customer: true,
-      po: {
-        include: {
-          challans: true
-        }
-      },
-      items: {
-        include: { product: true }
-      },
-      sales_tax_info: true
-    }
-  });
+  const { data: invoice, error } = await supabase
+    .from('Invoice')
+    .select('*, customer:Customer(*), po:PurchaseOrder(*, challans:Challan(*)), items:InvoiceItem(*, product:Product(*)), sales_tax_info:SalesTaxInvoice(*)')
+    .eq('id', id)
+    .single();
+
+  if (error || !invoice) notFound();
+
 
   if (!invoice) notFound();
 
@@ -246,7 +239,7 @@ export default async function InvoiceDetailsPage({ params }: { params: Promise<{
                 </tr>
               </thead>
               <tbody>
-                {invoice.items.map((item) => (
+                {invoice.items.map((item: any) => (
                   <tr key={item.id}>
                     <td>{item.product.product_code}</td>
                     <td style={{ fontWeight: 600 }}>{item.product.product_name}</td>
@@ -319,7 +312,7 @@ export default async function InvoiceDetailsPage({ params }: { params: Promise<{
               </tr>
             </thead>
             <tbody>
-              {invoice.items.map((item, index) => (
+              {invoice.items.map((item: any, index: number) => (
                 <tr key={item.id}>
                   <td style={{ textAlign: 'center' }}>{index + 1}</td>
                   <td style={{ textAlign: 'center' }}>{item.product.product_code}</td>
@@ -407,7 +400,7 @@ export default async function InvoiceDetailsPage({ params }: { params: Promise<{
               </tr>
             </thead>
             <tbody>
-              {invoice.items.map((item, index) => (
+              {invoice.items.map((item: any, index: number) => (
                 <tr key={item.id}>
                   <td style={{ textAlign: 'center' }}>{index + 1}</td>
                   <td style={{ textAlign: 'center' }}>{item.quantity}</td>

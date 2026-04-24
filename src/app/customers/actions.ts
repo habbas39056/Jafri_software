@@ -1,6 +1,6 @@
 'use server';
 
-import { prisma } from '@/lib/prisma';
+import { supabase } from '@/lib/supabase';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
@@ -20,19 +20,23 @@ export async function createCustomer(prevState: any, formData: FormData) {
     return { error: 'Vendor code is required' };
   }
 
-  try {
-    await prisma.customer.create({
-      data: {
+  const { error } = await supabase
+    .from('Customer')
+    .insert([
+      {
         customer_name,
         address,
         ntn,
         sales_tax_registration,
         vendor_code,
         phone,
+        created_at: new Date().toISOString(),
       },
-    });
-  } catch (error) {
-    return { error: 'Failed to create customer' };
+    ]);
+
+  if (error) {
+    console.error('Supabase error:', error);
+    return { error: `Failed to create customer: ${error.message}` };
   }
 
   revalidatePath('/customers');
@@ -40,13 +44,19 @@ export async function createCustomer(prevState: any, formData: FormData) {
 }
 
 export async function deleteCustomer(id: number) {
-  try {
-    await prisma.customer.delete({
-      where: { id },
-    });
-    revalidatePath('/customers');
-    return { success: true };
-  } catch (error) {
-    return { error: 'Failed to delete customer' };
+  const { error } = await supabase
+    .from('Customer')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Delete customer error:', error);
+    if (error.code === '23503') {
+      return { error: 'Cannot delete customer because they have active Purchase Orders, Invoices, or Delivery Challans linked to them.' };
+    }
+    return { error: `Failed to delete customer: ${error.message}` };
   }
+  
+  revalidatePath('/customers');
+  return { success: true };
 }

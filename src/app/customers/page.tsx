@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma';
+import { supabase } from '@/lib/supabase';
 import { Plus } from 'lucide-react';
 import Link from 'next/link';
 import CustomerSearch from '@/components/CustomerSearch';
@@ -12,17 +12,27 @@ export default async function CustomersPage({
   const resolvedSearchParams = await searchParams;
   const query = resolvedSearchParams?.q || '';
 
-  const customers = await prisma.customer.findMany({
-    where: query ? {
-      OR: [
-        { customer_name: { contains: query } },
-        { ntn: { contains: query } },
-        { vendor_code: { contains: query } },
-        { phone: { contains: query } }
-      ]
-    } : {},
-    orderBy: { created_at: 'desc' }
-  });
+  let customers: any[] = [];
+  let error: string | null = null;
+
+  try {
+    let supabaseQuery = supabase
+      .from('Customer')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (query) {
+      supabaseQuery = supabaseQuery.or(`customer_name.ilike.%${query}%,ntn.ilike.%${query}%,vendor_code.ilike.%${query}%,phone.ilike.%${query}%`);
+    }
+
+    const { data, error: supabaseError } = await supabaseQuery;
+
+    if (supabaseError) throw supabaseError;
+    customers = data || [];
+  } catch (e: any) {
+    console.error("Supabase error in CustomersPage:", e);
+    error = e.message || "Could not connect to the database.";
+  }
 
   return (
     <div className="animate-fade-in">
@@ -41,6 +51,13 @@ export default async function CustomersPage({
 
       <CustomerSearch />
 
+      {error && (
+        <div style={{ padding: '1rem', background: '#fee2e2', color: '#b91c1c', borderRadius: '8px', marginBottom: '1rem', border: '1px solid #fecaca' }}>
+          <strong>Database Connection Error:</strong> {error}
+          <p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>Make sure your database is initialized and the DATABASE_URL is correct.</p>
+        </div>
+      )}
+
       <div className="table-container">
         <table>
           <thead>
@@ -56,7 +73,7 @@ export default async function CustomersPage({
             </tr>
           </thead>
           <tbody>
-            {customers.length > 0 ? customers.map((customer) => (
+            {!error && customers.length > 0 ? customers.map((customer) => (
               <tr key={customer.id}>
                 <td style={{ fontWeight: 600 }}>{customer.customer_name}</td>
                 <td style={{ maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{customer.address}</td>
@@ -69,9 +86,9 @@ export default async function CustomersPage({
                   <CustomerActions id={customer.id} />
                 </td>
               </tr>
-            )) : (
+            )) : !error && (
               <tr>
-                <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>No customers found.</td>
+                <td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>No customers found.</td>
               </tr>
             )}
           </tbody>

@@ -1,16 +1,16 @@
-import { prisma } from '@/lib/prisma';
+import { supabase } from '@/lib/supabase';
 import { Plus, Truck, Calendar, FileText } from 'lucide-react';
 import Link from 'next/link';
+import ChallanActions from '@/components/ChallanActions';
 
 export default async function DeliveryPage() {
-  const challans = await prisma.challan.findMany({
-    include: {
-      customer: true,
-      po: true,
-      items: { include: { product: true } }
-    },
-    orderBy: { challan_date: 'desc' }
-  });
+  const { data: challansData, error } = await supabase
+    .from('Challan')
+    .select('*, customer:Customer(*), po:PurchaseOrder(*), items:ChallanItem(*, product:Product(*))')
+    .order('challan_date', { ascending: false });
+
+  const challans = (challansData || []) as any[];
+
 
   return (
     <div className="animate-fade-in">
@@ -57,7 +57,7 @@ export default async function DeliveryPage() {
 
             <div style={{ marginBottom: '1.5rem' }}>
               <p style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', color: '#64748b', marginBottom: '0.5rem' }}>Delivered Items</p>
-              {challan.items.map(item => (
+              {challan.items.map((item: any) => (
                 <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', marginBottom: '0.25rem' }}>
                   <span>{item.product.product_name}</span>
                   <span style={{ fontWeight: 600 }}>{item.delivered_qty} Units</span>
@@ -65,13 +65,14 @@ export default async function DeliveryPage() {
               ))}
             </div>
 
-            <div style={{ display: 'flex', gap: '0.75rem' }}>
-              <Link href={`/delivery/${challan.id}`} className="btn" style={{ flex: 1, border: '1px solid var(--border)', background: 'white', textAlign: 'center' }}>
+            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <Link href={`/delivery/${challan.id}`} className="btn" style={{ flex: '1 1 100px', border: '1px solid var(--border)', background: 'white', textAlign: 'center' }}>
                 View & Print GDN
               </Link>
-              <button className="btn btn-primary" style={{ flex: 1 }}>
+              <button className="btn btn-primary" style={{ flex: '1 1 100px' }}>
                 <FileText size={16} /> Create Invoice
               </button>
+              <ChallanActions id={challan.id} />
             </div>
           </div>
         )) : (

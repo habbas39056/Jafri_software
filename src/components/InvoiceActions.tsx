@@ -1,16 +1,16 @@
 'use client';
 
 import { Trash2 } from 'lucide-react';
-import { deletePurchaseOrder } from '@/app/purchase-orders/actions';
+import { deleteInvoice } from '@/app/invoices/actions';
 import { useTransition } from 'react';
 
-export default function POActions({ id }: { id: number }) {
+export default function InvoiceActions({ id }: { id: number }) {
   const [isPending, startTransition] = useTransition();
 
   const handleDelete = () => {
-    if (confirm('Are you sure you want to delete this Purchase Order? This will also delete its items and production tracking records.')) {
+    if (confirm('Are you sure you want to delete this invoice? This will also remove linked tax info and payment records.')) {
       startTransition(async () => {
-        const result = await deletePurchaseOrder(id);
+        const result = await deleteInvoice(id);
         if (result?.error) {
           alert(result.error);
         }
@@ -24,17 +24,16 @@ export default function POActions({ id }: { id: number }) {
       onClick={handleDelete}
       disabled={isPending}
       style={{ 
-        flex: 1,
+        padding: '4px', 
         color: 'var(--danger)', 
         border: '1px solid var(--border)', 
         background: 'white',
         opacity: isPending ? 0.5 : 1,
-        cursor: isPending ? 'not-allowed' : 'pointer',
-        justifyContent: 'center'
+        cursor: isPending ? 'not-allowed' : 'pointer'
       }}
-      title="Delete PO"
+      title="Delete Invoice"
     >
-      <Trash2 size={16} style={{ marginRight: '4px' }}/> Delete
+      <Trash2 size={18} />
     </button>
   );
 }

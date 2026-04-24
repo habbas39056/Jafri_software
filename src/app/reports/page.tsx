@@ -1,14 +1,14 @@
-import { prisma } from '@/lib/prisma';
+import { supabase } from '@/lib/supabase';
 import { BarChart3, TrendingUp, TrendingDown, Clock, AlertTriangle, FileText } from 'lucide-react';
 import Link from 'next/link';
 
 export default async function ReportsPage() {
-  const invoices = await prisma.invoice.findMany({
-    include: {
-      customer: true,
-      payments: true
-    }
-  });
+  const { data: invoicesData, error } = await supabase
+    .from('Invoice')
+    .select('*, customer:Customer(*), payments:Payment(*)');
+
+  const invoices = (invoicesData || []) as any[];
+
 
   // Computed data for the summary table
   const summary = invoices.map(inv => {

@@ -6,13 +6,15 @@ import {
   TrendingUp,
   ArrowRight
 } from 'lucide-react';
-import { prisma } from '@/lib/prisma';
+import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 
 export default async function Dashboard() {
-  const invoices = await prisma.invoice.findMany({
-    include: { payments: true }
-  });
+  const { data: invoicesData } = await supabase
+    .from('Invoice')
+    .select('*, payments:Payment(*)');
+  
+  const invoices = (invoicesData || []) as any[];
 
   const totalSales = invoices.reduce((sum, inv) => sum + (inv.total_amount || 0), 0);
   const totalGST = invoices.reduce((sum, inv) => sum + (inv.gst_amount || 0), 0);
@@ -22,7 +24,8 @@ export default async function Dashboard() {
   const today = new Date();
 
   invoices.forEach(inv => {
-    const received = inv.payments.reduce((s, p) => s + (p.amount_paid || 0) + (p.wht_amount || 0) + (p.retained_amount || 0) + (p.ld_penalty || 0), 0);
+    const payments = inv.payments || [];
+    const received = payments.reduce((s: number, p: any) => s + (p.amount_paid || 0) + (p.wht_amount || 0) + (p.retained_amount || 0) + (p.ld_penalty || 0), 0);
     const balance = inv.total_amount - received;
     
     if (balance > 0) {
@@ -42,11 +45,13 @@ export default async function Dashboard() {
     { label: 'Overdue Invoices', value: overdueCount.toString(), icon: AlertCircle, color: '#dc2626', bg: 'rgba(220, 38, 38, 0.1)' },
   ];
 
-  const recentOrders = await prisma.purchaseOrder.findMany({
-    take: 5,
-    include: { customer: true },
-    orderBy: { created_at: 'desc' }
-  });
+  const { data: recentOrdersData } = await supabase
+    .from('PurchaseOrder')
+    .select('*, customer:Customer(*)')
+    .order('created_at', { ascending: false })
+    .limit(5);
+    
+  const recentOrders = (recentOrdersData || []) as any[];
 
   return (
     <div className="animate-fade-in">

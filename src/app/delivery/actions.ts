@@ -1,24 +1,20 @@
 'use server';
 
-import { prisma } from '@/lib/prisma';
+import { supabase } from '@/lib/supabase';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 export async function getPendingPurchaseOrders() {
-  return await prisma.purchaseOrder.findMany({
-    where: {
-      status: {
-        not: 'Completed'
-      }
-    },
-    include: {
-      customer: true,
-      items: {
-        include: { product: true }
-      },
-      production: true
-    }
-  });
+  const { data, error } = await supabase
+    .from('PurchaseOrder')
+    .select('*, customer:Customer(*), items:POItem(*, product:Product(*)), production:ProductionTracking(*)')
+    .neq('status', 'Completed');
+
+  if (error) {
+    console.error('Error fetching pending POs:', error);
+    return [];
+  }
+  return data || [];
 }
 
 export async function createChallan(data: {
@@ -34,72 +30,110 @@ export async function createChallan(data: {
     return { error: 'Missing required fields' };
   }
 
-  try {
-    await prisma.$transaction(async (tx) => {
-      // 1. Create the Challan
-      const challan = await tx.challan.create({
-        data: {
-          gdn_number,
-          po_id,
-          customer_id,
-          challan_date: new Date(challan_date),
-          status: 'Delivered',
-          items: {
-            create: items.map(item => ({
-              product_id: item.product_id,
-              delivered_qty: item.delivered_qty,
-              remarks: item.remarks || ''
-            }))
-          }
-        }
-      });
-
-      // 2. Update Production Tracking
-      for (const item of items) {
-        const prodTracking = await tx.productionTracking.findFirst({
-          where: { po_id, product_id: item.product_id }
-        });
-
-        if (prodTracking) {
-          const newDelivered = prodTracking.delivered_qty + item.delivered_qty;
-          const newPending = prodTracking.ordered_qty - newDelivered - prodTracking.rejected_qty;
-          
-          let newStatus = 'In Progress';
-          if (newPending <= 0) {
-            newStatus = 'Completed';
-          }
-
-          await tx.productionTracking.update({
-            where: { id: prodTracking.id },
-            data: {
-              delivered_qty: newDelivered,
-              pending_qty: newPending,
-              status: newStatus,
-              last_updated: new Date()
-            }
-          });
-        }
+  // 1. Create the Challan
+  const { data: challan, error: challanError } = await supabase
+    .from('Challan')
+    .insert([
+      {
+        gdn_number,
+        po_id,
+        customer_id,
+        challan_date: new Date(challan_date).toISOString(),
+        status: 'Delivered',
+        created_at: new Date().toISOString()
       }
+    ])
+    .select()
+    .single();
 
-      // 3. Check if PO is completely delivered to update its status
-      const allTracking = await tx.productionTracking.findMany({ where: { po_id } });
-      const allCompleted = allTracking.every(t => t.pending_qty <= 0);
+  if (challanError || !challan) {
+    console.error('Failed to create GDN:', challanError);
+    return { error: 'Failed to create GDN' };
+  }
+
+  // 2. Create Challan Items
+  const { error: itemsError } = await supabase
+    .from('ChallanItem')
+    .insert(
+      items.map(item => ({
+        challan_id: challan.id,
+        product_id: item.product_id,
+        delivered_qty: item.delivered_qty,
+        remarks: item.remarks || ''
+      }))
+    );
+
+  if (itemsError) {
+    return { error: 'Failed to create GDN items' };
+  }
+
+  // 3. Update Production Tracking
+  for (const item of items) {
+    const { data: prodTracking, error: fetchError } = await supabase
+      .from('ProductionTracking')
+      .select('*')
+      .eq('po_id', po_id)
+      .eq('product_id', item.product_id)
+      .single();
+
+    if (prodTracking) {
+      const newDelivered = prodTracking.delivered_qty + item.delivered_qty;
+      const newPending = prodTracking.ordered_qty - newDelivered - prodTracking.rejected_qty;
       
-      if (allCompleted) {
-        await tx.purchaseOrder.update({
-          where: { id: po_id },
-          data: { status: 'Completed' }
-        });
+      let newStatus = 'In Progress';
+      if (newPending <= 0) {
+        newStatus = 'Completed';
       }
-    });
 
-  } catch (error: any) {
-    console.error('Failed to create GDN:', error);
-    return { error: error.message || 'Failed to create GDN' };
+      await supabase
+        .from('ProductionTracking')
+        .update({
+          delivered_qty: newDelivered,
+          pending_qty: newPending,
+          status: newStatus,
+          last_updated: new Date().toISOString()
+        })
+        .eq('id', prodTracking.id);
+    }
+  }
+
+  // 4. Check if PO is completely delivered
+  const { data: allTracking } = await supabase
+    .from('ProductionTracking')
+    .select('pending_qty')
+    .eq('po_id', po_id);
+    
+  const allCompleted = allTracking?.every(t => t.pending_qty <= 0);
+  
+  if (allCompleted) {
+    await supabase
+      .from('PurchaseOrder')
+      .update({ status: 'Completed' })
+      .eq('id', po_id);
   }
 
   revalidatePath('/delivery');
   revalidatePath('/production');
   revalidatePath('/purchase-orders');
   redirect('/delivery');
+}
+
+export async function deleteChallan(id: number) {
+  try {
+    // 1. Delete Challan Items
+    await supabase.from('ChallanItem').delete().eq('challan_id', id);
+    
+    // 2. Delete the Challan
+    const { error } = await supabase.from('Challan').delete().eq('id', id);
+
+    if (error) throw error;
+
+    revalidatePath('/delivery');
+    revalidatePath('/production');
+    revalidatePath('/purchase-orders');
+    return { success: true };
+  } catch (error: any) {
+    console.error('Delete challan error:', error);
+    return { error: `Failed to delete delivery note: ${error.message}` };
+  }
 }

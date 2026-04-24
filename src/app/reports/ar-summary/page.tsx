@@ -1,24 +1,24 @@
-import { prisma } from '@/lib/prisma';
+import { supabase } from '@/lib/supabase';
 import { Download, FileText, Printer } from 'lucide-react';
 import PrintButton from '@/components/PrintButton';
 
 export default async function ARSummaryReport() {
-  const invoices = await prisma.invoice.findMany({
-    include: {
-      customer: true,
-      po: {
-        include: { challans: true }
-      },
-      payments: true,
-      deliveries: true
-    },
-    orderBy: { invoice_date: 'desc' }
-  });
+  const { data: invoicesData } = await supabase
+    .from('Invoice')
+    .select('*, customer:Customer(*), po:PurchaseOrder(*, challans:Challan(*)), payments:Payment(*)')
+    .order('invoice_date', { ascending: false });
+
+  const invoices = (invoicesData || []) as any[];
+
 
   const today = new Date();
 
   return (
     <div className="animate-fade-in" style={{ padding: '2rem' }}>
+      <div className="print-only" style={{ display: 'none', textAlign: 'center', marginBottom: '20px' }}>
+        <h1 style={{ fontSize: '18pt', fontWeight: 'bold', textDecoration: 'underline' }}>Accounts Receivable (AR) Summary Report</h1>
+        <p>As of {today.toLocaleDateString('en-GB')}</p>
+      </div>
       <header className="header" style={{ marginBottom: '2rem' }}>
         <div className="page-title">
           <h1 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Accounts Receivable (AR) Summary Report</h1>
@@ -34,9 +34,9 @@ export default async function ARSummaryReport() {
           <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
             <tr style={{ background: '#0f172a', color: 'white' }}>
               <th style={{ padding: '12px 8px', borderRight: '1px solid #334155', textAlign: 'left', fontWeight: 600, position: 'sticky', left: 0, background: '#0f172a', minWidth: '150px' }}>Customer</th>
-              <th style={{ padding: '12px 8px', borderRight: '1px solid #334155', textAlign: 'left', fontWeight: 600, minWidth: '100px' }}>PO Reference</th>
-              <th style={{ padding: '12px 8px', borderRight: '1px solid #334155', textAlign: 'left', fontWeight: 600, minWidth: '100px' }}>Inv. No</th>
-              <th style={{ padding: '12px 8px', borderRight: '1px solid #334155', textAlign: 'left', fontWeight: 600, minWidth: '90px' }}>Date</th>
+              <th style={{ padding: '12px 8px', borderRight: '1px solid #334155', textAlign: 'left', fontWeight: 600, minWidth: '100px' }}>PO</th>
+              <th style={{ padding: '12px 8px', borderRight: '1px solid #334155', textAlign: 'left', fontWeight: 600, minWidth: '100px' }}>Invoice No.</th>
+              <th style={{ padding: '12px 8px', borderRight: '1px solid #334155', textAlign: 'left', fontWeight: 600, minWidth: '90px' }}>Inv Dt.</th>
               <th style={{ padding: '12px 8px', borderRight: '1px solid #334155', textAlign: 'right', fontWeight: 600, minWidth: '90px' }}>Amount</th>
               <th style={{ padding: '12px 8px', borderRight: '1px solid #334155', textAlign: 'right', fontWeight: 600, minWidth: '80px' }}>GST</th>
               <th style={{ padding: '12px 8px', borderRight: '1px solid #334155', textAlign: 'right', fontWeight: 600, minWidth: '90px' }}>Total</th>
@@ -44,23 +44,23 @@ export default async function ARSummaryReport() {
               <th style={{ padding: '12px 8px', borderRight: '1px solid #334155', textAlign: 'left', fontWeight: 600, minWidth: '90px' }}>DP Date</th>
               <th style={{ padding: '12px 8px', borderRight: '1px solid #334155', textAlign: 'center', fontWeight: 600, minWidth: '70px' }}>Credit</th>
               <th style={{ padding: '12px 8px', borderRight: '1px solid #334155', textAlign: 'left', fontWeight: 600, minWidth: '90px' }}>Due Dt.</th>
-              <th style={{ padding: '12px 8px', borderRight: '1px solid #334155', textAlign: 'center', fontWeight: 600, minWidth: '70px' }}>Aging</th>
-              <th style={{ padding: '12px 8px', borderRight: '1px solid #334155', textAlign: 'right', fontWeight: 600, background: '#1e293b', minWidth: '100px' }}>Received</th>
+              <th style={{ padding: '12px 8px', borderRight: '1px solid #334155', textAlign: 'center', fontWeight: 600, minWidth: '70px' }}>Over Due</th>
+              <th style={{ padding: '12px 8px', borderRight: '1px solid #334155', textAlign: 'right', fontWeight: 600, background: '#1e293b', minWidth: '100px' }}>Received Payment</th>
               <th style={{ padding: '12px 8px', borderRight: '1px solid #334155', textAlign: 'left', fontWeight: 600, minWidth: '90px' }}>Rcvd Dt.</th>
               <th style={{ padding: '12px 8px', borderRight: '1px solid #334155', textAlign: 'right', fontWeight: 600, minWidth: '90px' }}>WHT/IT</th>
-              <th style={{ padding: '12px 8px', borderRight: '1px solid #334155', textAlign: 'right', fontWeight: 600, minWidth: '90px' }}>Retained</th>
+              <th style={{ padding: '12px 8px', borderRight: '1px solid #334155', textAlign: 'right', fontWeight: 600, minWidth: '90px' }}>Retained Am.</th>
               <th style={{ padding: '12px 8px', borderRight: '1px solid #334155', textAlign: 'right', fontWeight: 600, minWidth: '90px' }}>LD Penalty</th>
               <th style={{ padding: '12px 8px', textAlign: 'right', fontWeight: 700, background: '#059669', minWidth: '100px' }}>Balance</th>
             </tr>
           </thead>
           <tbody>
             {invoices.map((inv, idx) => {
-              const totalReceived = inv.payments.reduce((sum, p) => sum + (p.amount_paid || 0), 0);
-              const totalWHT = inv.payments.reduce((sum, p) => sum + (p.wht_amount || 0), 0);
-              const totalRetained = inv.payments.reduce((sum, p) => sum + (p.retained_amount || 0), 0);
-              const totalLD = inv.payments.reduce((sum, p) => sum + (p.ld_penalty || 0), 0);
+              const totalReceived = inv.payments.reduce((sum: number, p: any) => sum + (p.amount_paid || 0), 0);
+              const totalWHT = inv.payments.reduce((sum: number, p: any) => sum + (p.wht_amount || 0), 0);
+              const totalRetained = inv.payments.reduce((sum: number, p: any) => sum + (p.retained_amount || 0), 0);
+              const totalLD = inv.payments.reduce((sum: number, p: any) => sum + (p.ld_penalty || 0), 0);
               const balance = inv.total_amount - totalReceived - totalWHT - totalRetained - totalLD;
-              
+
               const lastPayment = inv.payments.length > 0 ? inv.payments[inv.payments.length - 1] : null;
               const challan = inv.po?.challans?.[0];
               const dueDate = new Date(inv.invoice_date);
@@ -100,55 +100,74 @@ export default async function ARSummaryReport() {
           <tfoot style={{ position: 'sticky', bottom: 0, zIndex: 10 }}>
             <tr style={{ background: '#f1f5f9', fontWeight: 700, color: '#1e293b' }}>
               <td colSpan={4} style={{ padding: '12px 8px', textAlign: 'right', borderTop: '2px solid #cbd5e1' }}>TOTALS</td>
-              <td style={{ padding: '12px 8px', textAlign: 'right', borderTop: '2px solid #cbd5e1' }}>{invoices.reduce((s, i) => s + (i.subtotal || 0), 0).toLocaleString()}</td>
-              <td style={{ padding: '12px 8px', textAlign: 'right', borderTop: '2px solid #cbd5e1' }}>{invoices.reduce((s, i) => s + (i.gst_amount || 0), 0).toLocaleString()}</td>
-              <td style={{ padding: '12px 8px', textAlign: 'right', borderTop: '2px solid #cbd5e1' }}>{invoices.reduce((s, i) => s + (i.total_amount || 0), 0).toLocaleString()}</td>
+              <td style={{ padding: '12px 8px', textAlign: 'right', borderTop: '2px solid #cbd5e1' }}>{invoices.reduce((s: number, i: any) => s + (i.subtotal || 0), 0).toLocaleString()}</td>
+              <td style={{ padding: '12px 8px', textAlign: 'right', borderTop: '2px solid #cbd5e1' }}>{invoices.reduce((s: number, i: any) => s + (i.gst_amount || 0), 0).toLocaleString()}</td>
+              <td style={{ padding: '12px 8px', textAlign: 'right', borderTop: '2px solid #cbd5e1' }}>{invoices.reduce((s: number, i: any) => s + (i.total_amount || 0), 0).toLocaleString()}</td>
               <td colSpan={5} style={{ borderTop: '2px solid #cbd5e1' }}></td>
-              <td style={{ padding: '12px 8px', textAlign: 'right', borderTop: '2px solid #cbd5e1', color: '#059669' }}>{invoices.reduce((s, i) => s + i.payments.reduce((p, c) => p + (c.amount_paid || 0), 0), 0).toLocaleString()}</td>
+              <td style={{ padding: '12px 8px', textAlign: 'right', borderTop: '2px solid #cbd5e1', color: '#059669' }}>{invoices.reduce((s: number, i: any) => s + i.payments.reduce((p: number, c: any) => p + (c.amount_paid || 0), 0), 0).toLocaleString()}</td>
               <td style={{ borderTop: '2px solid #cbd5e1' }}></td>
-              <td style={{ padding: '12px 8px', textAlign: 'right', borderTop: '2px solid #cbd5e1', color: '#f59e0b' }}>{invoices.reduce((s, i) => s + i.payments.reduce((p, c) => p + (c.wht_amount || 0), 0), 0).toLocaleString()}</td>
-              <td style={{ padding: '12px 8px', textAlign: 'right', borderTop: '2px solid #cbd5e1', color: '#6366f1' }}>{invoices.reduce((s, i) => s + i.payments.reduce((p, c) => p + (c.retained_amount || 0), 0), 0).toLocaleString()}</td>
-              <td style={{ padding: '12px 8px', textAlign: 'right', borderTop: '2px solid #cbd5e1', color: '#dc2626' }}>{invoices.reduce((s, i) => s + i.payments.reduce((p, c) => p + (c.ld_penalty || 0), 0), 0).toLocaleString()}</td>
+              <td style={{ padding: '12px 8px', textAlign: 'right', borderTop: '2px solid #cbd5e1', color: '#f59e0b' }}>{invoices.reduce((s: number, i: any) => s + i.payments.reduce((p: number, c: any) => p + (c.wht_amount || 0), 0), 0).toLocaleString()}</td>
+              <td style={{ padding: '12px 8px', textAlign: 'right', borderTop: '2px solid #cbd5e1', color: '#6366f1' }}>{invoices.reduce((s: number, i: any) => s + i.payments.reduce((p: number, c: any) => p + (c.retained_amount || 0), 0), 0).toLocaleString()}</td>
+              <td style={{ padding: '12px 8px', textAlign: 'right', borderTop: '2px solid #cbd5e1', color: '#dc2626' }}>{invoices.reduce((s: number, i: any) => s + i.payments.reduce((p: number, c: any) => p + (c.ld_penalty || 0), 0), 0).toLocaleString()}</td>
               <td style={{ padding: '12px 8px', textAlign: 'right', borderTop: '2px solid #cbd5e1', background: '#ecfdf5', color: '#059669' }}>
-                {invoices.reduce((s, i) => s + (i.total_amount - i.payments.reduce((p, c) => p + (c.amount_paid || 0) + (c.wht_amount || 0) + (c.retained_amount || 0) + (c.ld_penalty || 0), 0)), 0).toLocaleString()}
+                {invoices.reduce((s: number, i: any) => s + (i.total_amount - i.payments.reduce((p: number, c: any) => p + (c.amount_paid || 0) + (c.wht_amount || 0) + (c.retained_amount || 0) + (c.ld_penalty || 0), 0)), 0).toLocaleString()}
               </td>
             </tr>
           </tfoot>
         </table>
       </div>
 
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         @media print {
           @page { size: landscape; margin: 5mm; }
           .header, .sidebar, .btn, .header-actions { display: none !important; }
           body { padding: 0 !important; margin: 0 !important; background: white !important; -webkit-print-color-adjust: exact; font-family: 'Inter', sans-serif; }
           .main-content { margin-left: 0 !important; padding: 0 !important; width: 100% !important; max-width: 100% !important; }
-          .card { border: none !important; box-shadow: none !important; padding: 0 !important; }
-          .report-table { width: 100% !important; table-layout: auto !important; font-size: 7px !important; border-collapse: collapse !important; border: 0.5pt solid #000 !important; }
+          .card { border: none !important; box-shadow: none !important; padding: 0 !important; overflow: visible !important; }
+          .report-table { 
+            width: 100% !important; 
+            border-collapse: collapse !important; 
+            border: 0.5pt solid #000 !important;
+            table-layout: fixed !important;
+          }
           .report-table th, .report-table td { 
-            padding: 3px 2px !important; 
-            border: 0.1pt solid #000 !important; 
-            word-break: break-all !important;
-            overflow: visible !important;
+            padding: 2px 1px !important; 
+            border: 0.5pt solid #000 !important; 
+            font-size: 6pt !important;
+            line-height: 1 !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
             position: static !important;
             background: transparent !important;
-            min-width: 0 !important; /* Allow shrinking in print */
           }
-          .report-table thead tr { background: #f0f0f0 !important; color: #000 !important; font-weight: bold !important; }
-          .report-table tfoot tr { background: #f9f9f9 !important; font-weight: bold !important; }
-          .report-table th { background: #f0f0f0 !important; text-transform: uppercase; font-size: 6px !important; }
-          .report-table td { color: #000 !important; }
-          .report-table thead, .report-table tfoot { position: static !important; }
+          /* Specific widths to make 18 columns fit */
+          .report-table th:nth-child(1) { width: 10%; } /* Customer */
+          .report-table th:nth-child(2) { width: 6%; }  /* PO */
+          .report-table th:nth-child(3) { width: 6%; }  /* Invoice No. */
+          .report-table th:nth-child(4) { width: 6%; }  /* Inv Dt. */
+          .report-table th:nth-child(5) { width: 5%; }  /* Amount */
+          .report-table th:nth-child(6) { width: 4%; }  /* GST */
+          .report-table th:nth-child(7) { width: 5%; }  /* Total */
+          .report-table th:nth-child(8) { width: 6%; }  /* DP No. */
+          .report-table th:nth-child(9) { width: 6%; }  /* DP Date */
+          .report-table th:nth-child(10) { width: 4%; } /* Credit */
+          .report-table th:nth-child(11) { width: 6%; } /* Due Dt. */
+          .report-table th:nth-child(12) { width: 4%; } /* Over Due */
+          .report-table th:nth-child(13) { width: 6%; } /* Received Payment */
+          .report-table th:nth-child(14) { width: 6%; } /* Rcvd Dt. */
+          .report-table th:nth-child(15) { width: 5%; } /* WHT/IT */
+          .report-table th:nth-child(16) { width: 5%; } /* Retained Am. */
+          .report-table th:nth-child(17) { width: 5%; } /* LD Penalty */
+          .report-table th:nth-child(18) { width: 5%; } /* Balance */
+          .report-table thead tr { background: #cbd5e1 !important; color: #000 !important; }
+          .report-table tfoot tr { background: #f1f5f9 !important; font-weight: bold !important; }
+          .report-table th { text-transform: uppercase; font-weight: bold !important; font-size: 6pt !important; }
           tr { page-break-inside: avoid !important; }
           
-          /* Force hide sticky column behavior in print */
-          .report-table th:first-child, 
-          .report-table td:first-child { 
-            position: static !important; 
-            background: transparent !important; 
-            width: auto !important;
-          }
+          .print-only { display: block !important; }
         }
       `}} />
     </div>

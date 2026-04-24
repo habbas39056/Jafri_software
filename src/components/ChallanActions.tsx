@@ -1,16 +1,16 @@
 'use client';
 
 import { Trash2 } from 'lucide-react';
-import { deletePurchaseOrder } from '@/app/purchase-orders/actions';
+import { deleteChallan } from '@/app/delivery/actions';
 import { useTransition } from 'react';
 
-export default function POActions({ id }: { id: number }) {
+export default function ChallanActions({ id }: { id: number }) {
   const [isPending, startTransition] = useTransition();
 
   const handleDelete = () => {
-    if (confirm('Are you sure you want to delete this Purchase Order? This will also delete its items and production tracking records.')) {
+    if (confirm('Are you sure you want to delete this Delivery Note (GDN)? This will reset the delivered quantity in production tracking.')) {
       startTransition(async () => {
-        const result = await deletePurchaseOrder(id);
+        const result = await deleteChallan(id);
         if (result?.error) {
           alert(result.error);
         }
@@ -30,11 +30,14 @@ export default function POActions({ id }: { id: number }) {
         background: 'white',
         opacity: isPending ? 0.5 : 1,
         cursor: isPending ? 'not-allowed' : 'pointer',
-        justifyContent: 'center'
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '4px'
       }}
-      title="Delete PO"
+      title="Delete GDN"
     >
-      <Trash2 size={16} style={{ marginRight: '4px' }}/> Delete
+      <Trash2 size={16} /> Delete
     </button>
   );
 }

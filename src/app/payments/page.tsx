@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma';
+import { supabase } from '@/lib/supabase';
 import { CreditCard, Plus, Search, DollarSign, Calendar } from 'lucide-react';
 import Link from 'next/link';
 
@@ -10,20 +10,23 @@ export default async function PaymentsPage({
   const resolvedSearchParams = await searchParams;
   const query = resolvedSearchParams?.q || '';
 
-  const payments = await prisma.payment.findMany({
-    where: query ? {
-      OR: [
-        { invoice: { invoice_number: { contains: query } } },
-        { customer: { customer_name: { contains: query } } },
-        { payment_method: { contains: query } }
-      ]
-    } : {},
-    include: {
-      customer: true,
-      invoice: true
-    },
-    orderBy: { payment_date: 'desc' }
-  });
+  let payments: any[] = [];
+  try {
+    let supabaseQuery = supabase
+      .from('Payment')
+      .select('*, customer:Customer(*), invoice:Invoice(*)')
+      .order('payment_date', { ascending: false });
+
+    if (query) {
+      supabaseQuery = supabaseQuery.or(`payment_method.ilike.%${query}%,customer(customer_name).ilike.%${query}%,invoice(invoice_number).ilike.%${query}%`);
+    }
+
+    const { data, error } = await supabaseQuery;
+    if (error) throw error;
+    payments = data || [];
+  } catch (error) {
+    console.error('Supabase error in PaymentsPage:', error);
+  }
 
   const totalCollected = payments.reduce((sum, p) => sum + p.amount_paid, 0);
 

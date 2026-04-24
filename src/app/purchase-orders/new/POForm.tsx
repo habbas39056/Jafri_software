@@ -3,14 +3,13 @@
 import { useState } from 'react';
 import { Plus, Trash2, Save } from 'lucide-react';
 import { createPurchaseOrder } from '../actions';
-import { Customer, Product } from '@prisma/client';
 
 export default function POForm({ 
   customers, 
   products 
 }: { 
-  customers: Customer[], 
-  products: Product[] 
+  customers: any[], 
+  products: any[] 
 }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -175,7 +174,7 @@ export default function POForm({
           </div>
 
           <div style={{ display: 'grid', gap: '1rem' }}>
-            {items.map((item, index) => (
+            {items.map((item, index: number) => (
               <div key={index} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: '1rem', alignItems: 'end', background: 'var(--background)', padding: '1rem', borderRadius: 'var(--radius)' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>Product</label>
