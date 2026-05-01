@@ -1,13 +1,14 @@
 'use client';
 
-import { createProduct } from '../actions';
+import { updateProduct } from '../../actions';
 import Link from 'next/link';
 import { ArrowLeft, Save, Upload, X } from 'lucide-react';
 import { useActionState, useState } from 'react';
 
-export default function NewProductPage() {
-  const [state, formAction, isPending] = useActionState(createProduct, null);
-  const [preview, setPreview] = useState<string | null>(null);
+export default function EditProductForm({ product }: { product: any }) {
+  const updateProductWithId = updateProduct.bind(null, product.id);
+  const [state, formAction, isPending] = useActionState(updateProductWithId, null);
+  const [preview, setPreview] = useState<string | null>(product.image_url || null);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -17,8 +18,6 @@ export default function NewProductPage() {
         setPreview(reader.result as string);
       };
       reader.readAsDataURL(file);
-    } else {
-      setPreview(null);
     }
   };
 
@@ -32,8 +31,8 @@ export default function NewProductPage() {
     <div className="animate-fade-in">
       <header className="header">
         <div className="page-title">
-          <h1>Add New Product</h1>
-          <p>Register a new product in your catalog.</p>
+          <h1>Edit Product</h1>
+          <p>Update details for {product.product_name}</p>
         </div>
         <div className="header-actions">
           <Link href="/products" className="btn" style={{ background: 'white', border: '1px solid var(--border)' }}>
@@ -50,6 +49,8 @@ export default function NewProductPage() {
               {state.error}
             </div>
           )}
+
+          <input type="hidden" name="existing_image_url" value={product.image_url || ''} />
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             <label htmlFor="product_name" style={{ fontSize: '0.875rem', fontWeight: 600 }}>Product Name *</label>
@@ -57,9 +58,9 @@ export default function NewProductPage() {
               type="text" 
               id="product_name" 
               name="product_name" 
+              defaultValue={product.product_name}
               required 
               style={{ padding: '0.75rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}
-              placeholder="e.g. Industrial Valve A"
             />
           </div>
           
@@ -70,9 +71,9 @@ export default function NewProductPage() {
                 type="text" 
                 id="product_code" 
                 name="product_code" 
+                defaultValue={product.product_code}
                 required
                 style={{ padding: '0.75rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}
-                placeholder="e.g. P-001"
               />
             </div>
             
@@ -82,11 +83,11 @@ export default function NewProductPage() {
                 type="number" 
                 id="unit_price" 
                 name="unit_price" 
+                defaultValue={product.unit_price}
                 min="0"
                 step="0.01"
                 required
                 style={{ padding: '0.75rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}
-                placeholder="e.g. 1500"
               />
             </div>
           </div>
@@ -98,8 +99,8 @@ export default function NewProductPage() {
                 type="text" 
                 id="hs_code" 
                 name="hs_code" 
+                defaultValue={product.hs_code || ''}
                 style={{ padding: '0.75rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}
-                placeholder="e.g. 8481.80"
               />
             </div>
             
@@ -145,8 +146,7 @@ export default function NewProductPage() {
                 ) : (
                   <div style={{ color: '#64748b' }}>
                     <Upload size={32} style={{ margin: '0 auto 0.5rem', opacity: 0.5 }} />
-                    <p style={{ fontSize: '0.875rem' }}>Click to select or drag and drop</p>
-                    <p style={{ fontSize: '0.75rem' }}>PNG, JPG or WebP (max. 2MB)</p>
+                    <p style={{ fontSize: '0.875rem' }}>Click to select new image</p>
                   </div>
                 )}
                 <input 
@@ -170,7 +170,7 @@ export default function NewProductPage() {
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
             <button type="submit" disabled={isPending} className="btn btn-primary">
               <Save size={18} />
-              {isPending ? 'Saving...' : 'Save Product'}
+              {isPending ? 'Updating...' : 'Update Product'}
             </button>
           </div>
         </form>

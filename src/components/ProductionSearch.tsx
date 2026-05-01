@@ -4,7 +4,7 @@ import { Search, Filter } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useTransition } from 'react';
 
-export default function POSearch({ customers }: { customers: any[] }) {
+export default function ProductionSearch({ customers }: { customers: any[] }) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const { replace } = useRouter();
@@ -29,7 +29,7 @@ export default function POSearch({ customers }: { customers: any[] }) {
         <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
         <input 
           type="text" 
-          placeholder="Search POs by number..." 
+          placeholder="Search by PO number or product..." 
           onChange={(e) => updateParams('q', e.target.value)}
           defaultValue={searchParams.get('q')?.toString()}
           style={{ 
@@ -85,10 +85,8 @@ export default function POSearch({ customers }: { customers: any[] }) {
         >
           <option value="">All Statuses</option>
           <option value="Pending">Pending</option>
-          <option value="Production">Production</option>
-          <option value="Delivered">Delivered</option>
-          <option value="Invoiced">Invoiced</option>
-          <option value="Payment Rcvd">Payment Rcvd</option>
+          <option value="In Progress">In Progress</option>
+          <option value="Completed">Completed</option>
         </select>
       </div>
     </div>

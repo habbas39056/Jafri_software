@@ -24,21 +24,25 @@ export default function ProductSearch() {
   };
 
   return (
-    <div className="card" style={{ marginBottom: '1.5rem', opacity: isPending ? 0.7 : 1 }}>
-      <div style={{ position: 'relative' }}>
-        <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+    <div style={{ marginBottom: '2.5rem', opacity: isPending ? 0.7 : 1 }}>
+      <div style={{ position: 'relative', maxWidth: '500px' }}>
+        <Search size={20} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#1e293b' }} />
         <input 
           type="text" 
-          placeholder="Search products by name or code..." 
+          placeholder="Search by name or code..." 
           onChange={(e) => handleSearch(e.target.value)}
           defaultValue={searchParams.get('q')?.toString()}
           style={{ 
             width: '100%', 
-            padding: '0.75rem 0.75rem 0.75rem 2.5rem', 
-            borderRadius: 'var(--radius)', 
-            border: '1px solid var(--border)',
+            padding: '1rem 1rem 1rem 3rem', 
+            borderRadius: '12px', 
+            border: '1.5px solid #e2e8f0',
+            background: 'white',
             outline: 'none',
-            fontSize: '0.875rem'
+            fontSize: '1rem',
+            color: '#1e293b',
+            boxShadow: 'var(--shadow-sm)',
+            transition: 'all 0.2s ease'
           }} 
         />
       </div>

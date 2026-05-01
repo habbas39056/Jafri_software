@@ -7,13 +7,21 @@ import InvoiceActions from '@/components/InvoiceActions';
 export default async function InvoicesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }> | { q?: string };
+  searchParams: Promise<{ q?: string; customer?: string; status?: string }> | { q?: string; customer?: string; status?: string };
 }) {
   const resolvedSearchParams = await searchParams;
   const query = resolvedSearchParams?.q || '';
+  const customerId = resolvedSearchParams?.customer || '';
+  const status = resolvedSearchParams?.status || '';
 
   let invoices: any[] = [];
+  let customers: any[] = [];
+  
   try {
+    // Fetch customers for filter
+    const { data: customerData } = await supabase.from('Customer').select('id, customer_name').order('customer_name');
+    customers = customerData || [];
+
     let supabaseQuery = supabase
       .from('Invoice')
       .select('*, customer:Customer(*), po:PurchaseOrder(*)')
@@ -21,6 +29,14 @@ export default async function InvoicesPage({
 
     if (query) {
       supabaseQuery = supabaseQuery.or(`invoice_number.ilike.%${query}%,customer(customer_name).ilike.%${query}%,po(po_number).ilike.%${query}%`);
+    }
+
+    if (customerId) {
+      supabaseQuery = supabaseQuery.eq('customer_id', customerId);
+    }
+
+    if (status) {
+      supabaseQuery = supabaseQuery.eq('status', status);
     }
 
     const { data, error } = await supabaseQuery;
@@ -45,7 +61,7 @@ export default async function InvoicesPage({
         </div>
       </header>
 
-      <InvoiceSearch />
+      <InvoiceSearch customers={customers} />
 
       <div className="stats-grid">
         <div className="card stat-card">

@@ -16,25 +16,46 @@ export async function getWarrantyInvoicables() {
   return data || [];
 }
 
+export async function getWarrantyChallanables() {
+  const { data, error } = await supabase
+    .from('Challan')
+    .select('*, customer:Customer(*), po:PurchaseOrder(*), items:ChallanItem(*, product:Product(*))');
+
+  if (error) {
+    console.error('Error fetching challanables:', error);
+    return [];
+  }
+  return data || [];
+}
+
 export async function createWarranty(prevState: any, formData: FormData) {
-  const invoice_id_str = formData.get('invoice_id') as string;
+  const type = formData.get('warranty_type') as string; // 'INV' or 'DC'
+  const ref_id_str = formData.get('ref_id') as string;
   const duration_years = parseInt(formData.get('duration_years') as string) || 1;
   const terms = formData.get('terms') as string;
 
-  if (!invoice_id_str) {
-    return { error: 'Please select an invoice.' };
+  if (!ref_id_str) {
+    return { error: 'Please select an Invoice or DC.' };
   }
 
-  const invoice_id = parseInt(invoice_id_str);
+  const ref_id = parseInt(ref_id_str);
+  let customer_id = 0;
+  let po_id = 0;
+  let invoice_id = null;
+  let challan_id = null;
 
-  const { data: invoice, error: fetchError } = await supabase
-    .from('Invoice')
-    .select('*, customer:Customer(*), po:PurchaseOrder(*)')
-    .eq('id', invoice_id)
-    .single();
-
-  if (fetchError || !invoice) {
-    return { error: 'Invoice not found.' };
+  if (type === 'INV') {
+    const { data: invoice } = await supabase.from('Invoice').select('*').eq('id', ref_id).single();
+    if (!invoice) return { error: 'Invoice not found.' };
+    customer_id = invoice.customer_id;
+    po_id = invoice.po_id;
+    invoice_id = invoice.id;
+  } else {
+    const { data: challan } = await supabase.from('Challan').select('*').eq('id', ref_id).single();
+    if (!challan) return { error: 'DC not found.' };
+    customer_id = challan.customer_id;
+    po_id = challan.po_id;
+    challan_id = challan.id;
   }
 
   const start_date = new Date();
@@ -47,9 +68,11 @@ export async function createWarranty(prevState: any, formData: FormData) {
     .insert([
       {
         warranty_number: `PENDING-${Date.now()}`,
-        customer_id: invoice.customer_id,
-        invoice_id: invoice.id,
-        po_id: invoice.po_id,
+        customer_id,
+        invoice_id,
+        challan_id,
+        po_id,
+        warranty_type: type,
         start_date: start_date.toISOString(),
         end_date: end_date.toISOString(),
         status: 'Active',

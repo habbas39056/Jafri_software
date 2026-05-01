@@ -9,11 +9,29 @@ import {
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 
-export default async function Dashboard() {
-  const { data: invoicesData } = await supabase
+import DashboardFilter from '@/components/DashboardFilter';
+
+export default async function Dashboard({
+  searchParams,
+}: {
+  searchParams: Promise<{ customer?: string }> | { customer?: string };
+}) {
+  const resolvedSearchParams = await searchParams;
+  const customerId = resolvedSearchParams?.customer || '';
+
+  // Fetch customers for filter
+  const { data: customerData } = await supabase.from('Customer').select('id, customer_name').order('customer_name');
+  const customers = customerData || [];
+
+  let invoicesQuery = supabase
     .from('Invoice')
-    .select('*, payments:Payment(*)');
+    .select('*, customer:Customer(*), payments:Payment(*)');
   
+  if (customerId) {
+    invoicesQuery = invoicesQuery.eq('customer_id', customerId);
+  }
+
+  const { data: invoicesData } = await invoicesQuery;
   const invoices = (invoicesData || []) as any[];
 
   const totalSales = invoices.reduce((sum, inv) => sum + (inv.total_amount || 0), 0);
@@ -45,22 +63,27 @@ export default async function Dashboard() {
     { label: 'Overdue Invoices', value: overdueCount.toString(), icon: AlertCircle, color: '#dc2626', bg: 'rgba(220, 38, 38, 0.1)' },
   ];
 
-  const { data: recentOrdersData } = await supabase
+  let poQuery = supabase
     .from('PurchaseOrder')
     .select('*, customer:Customer(*)')
-    .order('created_at', { ascending: false })
-    .limit(5);
-    
+    .order('created_at', { ascending: false });
+
+  if (customerId) {
+    poQuery = poQuery.eq('customer_id', customerId);
+  }
+
+  const { data: recentOrdersData } = await poQuery.limit(5);
   const recentOrders = (recentOrdersData || []) as any[];
 
   return (
     <div className="animate-fade-in">
-      <header className="header">
+      <header className="header" style={{ marginBottom: '2rem' }}>
         <div className="page-title">
-          <h1>Dashboard</h1>
-          <p>Welcome back, Jafri & Co Management System.</p>
+          <h1>Business Overview</h1>
+          <p>Real-time analytics and management dashboard.</p>
         </div>
-        <div className="header-actions">
+        <div className="header-actions" style={{ gap: '1rem' }}>
+          <DashboardFilter customers={customers} />
           <button className="btn btn-primary">
             <TrendingUp size={18} />
             Generate Report
@@ -82,43 +105,47 @@ export default async function Dashboard() {
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-            <h2 style={{ fontSize: '1.25rem' }}>Recent Purchase Orders</h2>
-            <Link href="/purchase-orders" style={{ color: 'var(--primary)', fontSize: '0.875rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-              View All <ArrowRight size={14} />
+            <h2 style={{ fontSize: '1.25rem' }}>Invoice Wise Breakup</h2>
+            <Link href="/invoices" style={{ color: 'var(--primary)', fontSize: '0.875rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+              All Invoices <ArrowRight size={14} />
             </Link>
           </div>
           <div className="table-container">
             <table>
               <thead>
                 <tr>
-                  <th>PO Number</th>
-                  <th>Customer</th>
-                  <th>Date</th>
+                  <th>Inv No</th>
+                  {!customerId && <th>Customer</th>}
+                  <th>Amount</th>
+                  <th>Balance</th>
                   <th>Status</th>
-                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {recentOrders.length > 0 ? recentOrders.map((order) => (
-                  <tr key={order.id}>
-                    <td style={{ fontWeight: 600 }}>{order.po_number}</td>
-                    <td>{order.customer.customer_name}</td>
-                    <td>{new Date(order.po_date).toLocaleDateString()}</td>
-                    <td>
-                      <span className={`badge badge-${order.status.toLowerCase().replace(' ', '-')}`}>
-                        {order.status}
-                      </span>
-                    </td>
-                    <td>
-                      <button className="btn" style={{ padding: '4px 8px', fontSize: '0.75rem', border: '1px solid var(--border)' }}>Details</button>
-                    </td>
-                  </tr>
-                )) : (
+                {invoices.length > 0 ? invoices.slice(0, 5).map((inv) => {
+                  const received = (inv.payments || []).reduce((s: number, p: any) => s + (p.amount_paid || 0) + (p.wht_amount || 0) + (p.retained_amount || 0) + (p.ld_penalty || 0), 0);
+                  const balance = inv.total_amount - received;
+                  return (
+                    <tr key={inv.id}>
+                      <td style={{ fontWeight: 600 }}>{inv.invoice_number}</td>
+                      {!customerId && <td>{inv.customer?.customer_name}</td>}
+                      <td>PKR {inv.total_amount.toLocaleString()}</td>
+                      <td style={{ color: balance > 0 ? '#ef4444' : '#059669', fontWeight: 600 }}>
+                        PKR {balance.toLocaleString()}
+                      </td>
+                      <td>
+                        <span className={`badge badge-${balance <= 0 ? 'paid' : 'pending'}`}>
+                          {balance <= 0 ? 'Paid' : 'Unpaid'}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                }) : (
                   <tr>
-                    <td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>No recent orders found.</td>
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '2rem' }}>No invoices found.</td>
                   </tr>
                 )}
               </tbody>
@@ -126,21 +153,42 @@ export default async function Dashboard() {
           </div>
         </div>
 
-        <div className="card glass-card">
-          <h2 style={{ fontSize: '1.25rem', marginBottom: '1.5rem' }}>Quick Actions</h2>
-          <div style={{ display: 'grid', gap: '0.75rem' }}>
-            <Link href="/customers/new" className="btn" style={{ width: '100%', justifyContent: 'flex-start', background: 'var(--background)', border: '1px solid var(--border)' }}>
-              <ArrowRight size={16} /> Add New Customer
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+            <h2 style={{ fontSize: '1.25rem' }}>Recent Activity</h2>
+            <Link href="/purchase-orders" style={{ color: 'var(--primary)', fontSize: '0.875rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+              All POs <ArrowRight size={14} />
             </Link>
-            <Link href="/purchase-orders/new" className="btn" style={{ width: '100%', justifyContent: 'flex-start', background: 'var(--background)', border: '1px solid var(--border)' }}>
-              <ArrowRight size={16} /> Create New PO
-            </Link>
-            <Link href="/delivery/new" className="btn" style={{ width: '100%', justifyContent: 'flex-start', background: 'var(--background)', border: '1px solid var(--border)' }}>
-              <ArrowRight size={16} /> Generate Challan
-            </Link>
-            <Link href="/invoices/new" className="btn" style={{ width: '100%', justifyContent: 'flex-start', background: 'var(--background)', border: '1px solid var(--border)' }}>
-              <ArrowRight size={16} /> Create Invoice
-            </Link>
+          </div>
+          <div className="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>PO No</th>
+                  {!customerId && <th>Customer</th>}
+                  <th>Date</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentOrders.length > 0 ? recentOrders.map((order) => (
+                  <tr key={order.id}>
+                    <td style={{ fontWeight: 600 }}>{order.po_number}</td>
+                    {!customerId && <td>{order.customer.customer_name}</td>}
+                    <td>{new Date(order.po_date).toLocaleDateString()}</td>
+                    <td>
+                      <span className={`badge badge-${order.status.toLowerCase().replace(' ', '-')}`}>
+                        {order.status}
+                      </span>
+                    </td>
+                  </tr>
+                )) : (
+                  <tr>
+                    <td colSpan={4} style={{ textAlign: 'center', padding: '2rem' }}>No recent activity.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>

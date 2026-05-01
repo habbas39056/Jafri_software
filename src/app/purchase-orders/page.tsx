@@ -7,13 +7,21 @@ import POActions from '@/components/POActions';
 export default async function POPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }> | { q?: string };
+  searchParams: Promise<{ q?: string; customer?: string; status?: string }> | { q?: string; customer?: string; status?: string };
 }) {
   const resolvedSearchParams = await searchParams;
   const query = resolvedSearchParams?.q || '';
+  const customerId = resolvedSearchParams?.customer || '';
+  const status = resolvedSearchParams?.status || '';
 
   let pos: any[] = [];
+  let customers: any[] = [];
+  
   try {
+    // Fetch customers for filter dropdown
+    const { data: customerData } = await supabase.from('Customer').select('id, customer_name').order('customer_name');
+    customers = customerData || [];
+
     let supabaseQuery = supabase
       .from('PurchaseOrder')
       .select('*, customer:Customer(*), items:POItem(*, product:Product(*))')
@@ -21,6 +29,14 @@ export default async function POPage({
 
     if (query) {
       supabaseQuery = supabaseQuery.or(`po_number.ilike.%${query}%,customer(customer_name).ilike.%${query}%`);
+    }
+
+    if (customerId) {
+      supabaseQuery = supabaseQuery.eq('customer_id', customerId);
+    }
+
+    if (status) {
+      supabaseQuery = supabaseQuery.eq('status', status);
     }
 
     const { data, error } = await supabaseQuery;
@@ -45,56 +61,70 @@ export default async function POPage({
         </div>
       </header>
 
-      <POSearch />
+      <POSearch customers={customers} />
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '1.5rem' }}>
-        {pos.length > 0 ? pos.map((po) => (
-          <div key={po.id} className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-              <div>
-                <h3 style={{ fontSize: '1.125rem', marginBottom: '0.25rem' }}>{po.po_number}</h3>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#64748b', fontSize: '0.875rem' }}>
-                  <User size={14} /> {po.customer.customer_name}
-                </div>
-              </div>
-              <span className={`badge badge-${(po.status || 'Pending').toLowerCase().replace(' ', '-')}`}>
-                {po.status || 'Pending'}
-              </span>
-            </div>
- 
-            <div style={{ display: 'grid', gap: '0.5rem', marginBottom: '1.5rem', padding: '0.75rem', background: 'var(--background)', borderRadius: '8px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
-                <span style={{ color: '#64748b' }}>Date:</span>
-                <span>{po.po_date ? new Date(po.po_date).toLocaleDateString() : 'N/A'}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
-                <span style={{ color: '#64748b' }}>Due Date:</span>
-                <span style={{ fontWeight: 600, color: '#ef4444' }}>{po.due_date ? new Date(po.due_date).toLocaleDateString() : 'N/A'}</span>
-              </div>
-            </div>
-
-            <div style={{ marginBottom: '1.5rem' }}>
-              <p style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', color: '#64748b', marginBottom: '0.5rem' }}>Items</p>
-              {po.items.map((item: any) => (
-                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', marginBottom: '0.25rem' }}>
-                  <span>{item.product.product_name} x {item.quantity}</span>
-                  <span style={{ fontWeight: 600 }}>PKR {item.total_amount.toLocaleString()}</span>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ display: 'flex', gap: '0.75rem' }}>
-              <POActions id={po.id} />
-              <Link href={`/purchase-orders/${po.id}`} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>
-                View Details
-              </Link>
-            </div>
-          </div>
-        )) : (
-          <div className="card" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem' }}>
-            <h3 style={{ color: '#64748b' }}>No Purchase Orders found.</h3>
-          </div>
-        )}
+      <div className="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>PO Number</th>
+              <th>Customer</th>
+              <th>PO Date</th>
+              <th>Items</th>
+              <th>Codes</th>
+              <th>Due Date</th>
+              <th style={{ textAlign: 'center' }}>Status</th>
+              <th style={{ textAlign: 'right' }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pos.length > 0 ? pos.map((po) => (
+              <tr key={po.id}>
+                <td style={{ fontWeight: 600 }}>{po.po_number}</td>
+                <td>{po.customer.customer_name}</td>
+                <td>{po.po_date ? new Date(po.po_date).toLocaleDateString() : 'N/A'}</td>
+                <td>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {po.items.map((item: any, i: number) => (
+                      <div key={i}>{item.product.product_name} x {item.quantity}</div>
+                    ))}
+                  </div>
+                </td>
+                <td>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', color: '#64748b', fontSize: '0.8rem' }}>
+                    {po.items.map((item: any, i: number) => (
+                      <div key={i}>{item.product.product_code}</div>
+                    ))}
+                  </div>
+                </td>
+                <td>
+                  <span style={{ fontWeight: 600, color: '#ef4444' }}>
+                    {po.due_date ? new Date(po.due_date).toLocaleDateString() : 'N/A'}
+                  </span>
+                </td>
+                <td style={{ textAlign: 'center' }}>
+                  <span className={`badge badge-${(po.status || 'Pending').toLowerCase().replace(' ', '-')}`}>
+                    {po.status || 'Pending'}
+                  </span>
+                </td>
+                <td style={{ textAlign: 'right' }}>
+                  <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                    <POActions id={po.id} />
+                    <Link href={`/purchase-orders/${po.id}`} className="btn btn-primary" style={{ padding: '0.5rem 0.75rem', fontSize: '0.8rem' }}>
+                      View
+                    </Link>
+                  </div>
+                </td>
+              </tr>
+            )) : (
+              <tr>
+                <td colSpan={8} style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
+                  No Purchase Orders found.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );

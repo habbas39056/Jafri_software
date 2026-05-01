@@ -1,15 +1,41 @@
 import { supabase } from '@/lib/supabase';
 import { Factory, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 import UpdateProductionBtn from '@/components/UpdateProductionBtn';
+import ProductionSearch from '@/components/ProductionSearch';
 
-export default async function ProductionPage() {
-  const { data: trackingData, error } = await supabase
+export default async function ProductionPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; customer?: string; status?: string }> | { q?: string; customer?: string; status?: string };
+}) {
+  const resolvedSearchParams = await searchParams;
+  const query = resolvedSearchParams?.q || '';
+  const customerId = resolvedSearchParams?.customer || '';
+  const status = resolvedSearchParams?.status || '';
+
+  // Fetch customers for filter
+  const { data: customerData } = await supabase.from('Customer').select('id, customer_name').order('customer_name');
+  const customers = customerData || [];
+
+  let supabaseQuery = supabase
     .from('ProductionTracking')
     .select('*, po:PurchaseOrder(*, customer:Customer(*)), product:Product(*)')
     .order('last_updated', { ascending: false });
 
-  const tracking = (trackingData || []) as any[];
+  if (query) {
+    supabaseQuery = supabaseQuery.or(`po(po_number).ilike.%${query}%,product(product_name).ilike.%${query}%`);
+  }
 
+  if (customerId) {
+    supabaseQuery = supabaseQuery.eq('po.customer_id', customerId);
+  }
+
+  if (status) {
+    supabaseQuery = supabaseQuery.eq('status', status);
+  }
+
+  const { data: trackingData, error } = await supabaseQuery;
+  const tracking = (trackingData || []) as any[];
 
   return (
     <div className="animate-fade-in">
@@ -19,6 +45,8 @@ export default async function ProductionPage() {
           <p>Monitor manufacturing progress and pending quantities.</p>
         </div>
       </header>
+
+      <ProductionSearch customers={customers} />
 
       <div className="stats-grid">
         <div className="card stat-card">

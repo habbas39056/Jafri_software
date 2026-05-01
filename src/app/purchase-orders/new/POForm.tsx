@@ -22,7 +22,7 @@ export default function POForm({
     gst_percentage: 18.0
   });
 
-  const [items, setItems] = useState([{ product_id: '', quantity: 1, rate: 0, total_amount: 0 }]);
+  const [items, setItems] = useState([{ product_id: '', code: '', quantity: 1, rate: 0, total_amount: 0 }]);
 
   const handleProductSelect = (index: number, productId: string) => {
     const product = products.find(p => p.id.toString() === productId);
@@ -30,8 +30,11 @@ export default function POForm({
     newItems[index].product_id = productId;
     
     if (product) {
+      newItems[index].code = product.product_code;
       newItems[index].rate = product.unit_price;
       newItems[index].total_amount = product.unit_price * newItems[index].quantity;
+    } else {
+      newItems[index].code = '';
     }
     setItems(newItems);
   };
@@ -43,8 +46,15 @@ export default function POForm({
     setItems(newItems);
   };
 
+  const handleRateChange = (index: number, rate: number) => {
+    const newItems = [...items];
+    newItems[index].rate = rate;
+    newItems[index].total_amount = rate * newItems[index].quantity;
+    setItems(newItems);
+  };
+
   const addItem = () => {
-    setItems([...items, { product_id: '', quantity: 1, rate: 0, total_amount: 0 }]);
+    setItems([...items, { product_id: '', code: '', quantity: 1, rate: 0, total_amount: 0 }]);
   };
 
   const removeItem = (index: number) => {
@@ -88,7 +98,9 @@ export default function POForm({
     }
   };
 
-  const grandTotal = items.reduce((sum, item) => sum + item.total_amount, 0);
+  const subtotal = items.reduce((sum, item) => sum + item.total_amount, 0);
+  const gstAmount = (subtotal * poDetails.gst_percentage) / 100;
+  const grandTotal = subtotal + gstAmount;
 
   return (
     <div className="card">
@@ -175,7 +187,7 @@ export default function POForm({
 
           <div style={{ display: 'grid', gap: '1rem' }}>
             {items.map((item, index: number) => (
-              <div key={index} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: '1rem', alignItems: 'end', background: 'var(--background)', padding: '1rem', borderRadius: 'var(--radius)' }}>
+              <div key={index} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 0.8fr 1fr 1fr auto', gap: '1rem', alignItems: 'end', background: 'var(--background)', padding: '1rem', borderRadius: 'var(--radius)' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>Product</label>
                   <select 
@@ -186,9 +198,20 @@ export default function POForm({
                   >
                     <option value="">Select...</option>
                     {products.map(p => (
-                      <option key={p.id} value={p.id}>{p.product_name} ({p.product_code})</option>
+                      <option key={p.id} value={p.id}>{p.product_name}</option>
                     ))}
                   </select>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>Item Code</label>
+                  <input 
+                    type="text" 
+                    readOnly
+                    value={item.code}
+                    placeholder="Code"
+                    style={{ padding: '0.5rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: '#f1f5f9', fontSize: '0.875rem' }}
+                  />
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -206,9 +229,12 @@ export default function POForm({
                   <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>Rate (PKR)</label>
                   <input 
                     type="number" 
-                    readOnly
+                    required
+                    min="0"
+                    step="0.01"
                     value={item.rate}
-                    style={{ padding: '0.5rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: '#f1f5f9' }}
+                    onChange={e => handleRateChange(index, parseFloat(e.target.value) || 0)}
+                    style={{ padding: '0.5rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}
                   />
                 </div>
 
@@ -235,10 +261,18 @@ export default function POForm({
             ))}
           </div>
           
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem', fontSize: '1.25rem' }}>
-            <div style={{ background: 'var(--background)', padding: '1rem 2rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
-              <span style={{ color: '#64748b', marginRight: '1rem' }}>Grand Total:</span>
-              <span style={{ fontWeight: 700 }}>PKR {grandTotal.toLocaleString()}</span>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginTop: '1.5rem', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', gap: '2rem', fontSize: '1rem', color: '#64748b' }}>
+              <span>Subtotal:</span>
+              <span style={{ fontWeight: 600, minWidth: '120px', textAlign: 'right' }}>PKR {subtotal.toLocaleString()}</span>
+            </div>
+            <div style={{ display: 'flex', gap: '2rem', fontSize: '1rem', color: '#64748b' }}>
+              <span>GST ({poDetails.gst_percentage}%):</span>
+              <span style={{ fontWeight: 600, minWidth: '120px', textAlign: 'right' }}>PKR {gstAmount.toLocaleString()}</span>
+            </div>
+            <div style={{ display: 'flex', gap: '2rem', fontSize: '1.5rem', marginTop: '0.5rem', padding: '0.5rem 0 0 0', borderTop: '2px solid var(--border)' }}>
+              <span style={{ fontWeight: 600 }}>Grand Total:</span>
+              <span style={{ fontWeight: 800, color: 'var(--primary)', minWidth: '150px', textAlign: 'right' }}>PKR {grandTotal.toLocaleString()}</span>
             </div>
           </div>
         </div>
