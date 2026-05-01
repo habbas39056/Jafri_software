@@ -203,7 +203,11 @@ export default async function WarrantyDetailsPage({
 
           <div className="date-ref">
             <p>Date: {new Date(warranty.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-            <p>Ref GDN: {warranty.challan?.gdn_number || warranty.invoice?.po?.challans?.[0]?.gdn_number || '-'}</p>
+            {warranty.warranty_type === 'INV' ? (
+              <p>Ref INV: {warranty.invoice?.invoice_number?.split('-')?.pop() || '-'}</p>
+            ) : (
+              <p>Ref GDN: {warranty.challan?.gdn_number || warranty.invoice?.po?.challans?.[0]?.gdn_number || '-'}</p>
+            )}
           </div>
 
           <div className="recipient">
