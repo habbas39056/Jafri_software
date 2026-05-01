@@ -84,7 +84,7 @@ export async function createWarranty(prevState: any, formData: FormData) {
 
   if (createError || !warranty) {
     console.error('Warranty creation failed:', createError);
-    return { error: 'Failed to create warranty.' };
+    return { error: `Failed to create warranty: ${createError?.message || 'Unknown error'}` };
   }
 
   // 2. Update with the actual sequential number

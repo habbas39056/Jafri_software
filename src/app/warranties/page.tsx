@@ -64,6 +64,7 @@ export default async function WarrantiesPage({
             <thead>
               <tr>
                 <th>Warranty #</th>
+                <th>Basis</th>
                 <th>Customer</th>
                 <th>PO Reference</th>
                 <th>Valid Until</th>
@@ -75,6 +76,14 @@ export default async function WarrantiesPage({
               {warranties.length > 0 ? warranties.map((warranty) => (
                 <tr key={warranty.id}>
                   <td style={{ fontWeight: 600 }}>{warranty.warranty_number || `WR-${warranty.id}`}</td>
+                  <td>
+                    <span className={`badge badge-${(warranty.warranty_type || 'INV').toLowerCase()}`} style={{ 
+                      backgroundColor: warranty.warranty_type === 'DC' ? '#ffedd5' : '#dbeafe',
+                      color: warranty.warranty_type === 'DC' ? '#9a3412' : '#1e40af'
+                    }}>
+                      {warranty.warranty_type || 'INV'}
+                    </span>
+                  </td>
                   <td>{warranty.customer.customer_name}</td>
                   <td>{warranty.invoice?.po?.po_number || (warranty as any).po?.po_number || '-'}</td>
                   <td>{new Date(warranty.end_date).toLocaleDateString()}</td>
@@ -88,7 +97,7 @@ export default async function WarrantiesPage({
                       <Link href={`/warranties/${warranty.id}`} className="btn" style={{ padding: '4px' }} title="View Certificate">
                         <ExternalLink size={18} />
                       </Link>
-                      <Link href={`/warranties/${warranty.id}`} className="btn" style={{ padding: '4px' }} title="Download PDF">
+                      <Link href={`/warranties/${warranty.id}?download=true`} className="btn" style={{ padding: '4px' }} title="Download PDF">
                         <Download size={18} />
                       </Link>
                     </div>

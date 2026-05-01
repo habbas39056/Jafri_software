@@ -4,15 +4,22 @@ import Link from 'next/link';
 import { ArrowLeft, Printer, Download, ShieldCheck } from 'lucide-react';
 import PrintButton from '@/components/PrintButton';
 
-export default async function WarrantyDetailsPage({ params }: { params: Promise<{ id: string }> | { id: string } }) {
+export default async function WarrantyDetailsPage({ 
+  params,
+  searchParams 
+}: { 
+  params: Promise<{ id: string }> | { id: string },
+  searchParams: Promise<{ download?: string }> | { download?: string }
+}) {
   const resolvedParams = await params;
+  const resolvedSearchParams = await searchParams;
   const id = parseInt(resolvedParams.id, 10);
 
   if (isNaN(id)) notFound();
 
   const { data: warranty, error } = await supabase
     .from('Warranty')
-    .select('*, customer:Customer(*), invoice:Invoice(*, items:InvoiceItem(*, product:Product(*)), po:PurchaseOrder(*, challans:Challan(*))), po:PurchaseOrder(*)')
+    .select('*, customer:Customer(*), invoice:Invoice(*, items:InvoiceItem(*, product:Product(*)), po:PurchaseOrder(*, challans:Challan(*))), challan:Challan(*, items:ChallanItem(*, product:Product(*))), po:PurchaseOrder(*)')
     .eq('id', id)
     .single();
 
@@ -24,6 +31,9 @@ export default async function WarrantyDetailsPage({ params }: { params: Promise<
   return (
     <>
       <style dangerouslySetInnerHTML={{__html: `
+        @media screen {
+          .print-only { display: none !important; }
+        }
         @media print {
           .web-only { display: none !important; }
           .print-only { display: block !important; }
@@ -142,7 +152,7 @@ export default async function WarrantyDetailsPage({ params }: { params: Promise<
               <ArrowLeft size={18} />
               Back to List
             </Link>
-            <PrintButton label="Download Warranty Letter" />
+            <PrintButton label="Download Warranty Letter" autoPrint={resolvedSearchParams.download === 'true'} />
           </div>
         </header>
 
@@ -167,7 +177,7 @@ export default async function WarrantyDetailsPage({ params }: { params: Promise<
            <div style={{ marginTop: '2rem' }}>
               <p style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Covered Items</p>
               <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: 'var(--radius)', marginTop: '0.5rem' }}>
-                {warranty.invoice?.items.map((item: any) => (
+                {(warranty.invoice?.items || warranty.challan?.items || []).map((item: any) => (
                   <p key={item.id} style={{ fontWeight: 500 }}>• {item.product.product_name}</p>
                 ))}
               </div>
@@ -179,7 +189,7 @@ export default async function WarrantyDetailsPage({ params }: { params: Promise<
         </div>
       </div>
 
-      <div className="print-only" style={{ display: 'none' }}>
+      <div className="print-only">
         <div className="warranty-letter">
           <div className="company-header">
             <div className="logo-circle">JC</div>
@@ -193,7 +203,7 @@ export default async function WarrantyDetailsPage({ params }: { params: Promise<
 
           <div className="date-ref">
             <p>Date: {new Date(warranty.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-            <p>Ref GDN: {warranty.invoice?.po?.challans?.[0]?.gdn_number?.split('-')?.pop() || '1001'}</p>
+            <p>Ref GDN: {warranty.challan?.gdn_number || warranty.invoice?.po?.challans?.[0]?.gdn_number || '-'}</p>
           </div>
 
           <div className="recipient">
@@ -215,7 +225,7 @@ export default async function WarrantyDetailsPage({ params }: { params: Promise<
 
           <div className="product-list-container">
             <div className="product-list-header">Product(s)/Service</div>
-            {warranty.invoice?.items.map((item: any) => (
+            {(warranty.invoice?.items || warranty.challan?.items || []).map((item: any) => (
               <div key={item.id} className="product-name">{item.product.product_name}</div>
             ))}
           </div>
