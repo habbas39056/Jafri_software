@@ -13,13 +13,25 @@ import {
   CreditCard, 
   ShieldCheck, 
   BarChart3,
-  Settings
+  Settings,
+  Wallet,
+  UserCog,
+  LogOut,
+  Calculator
 } from 'lucide-react';
+
+import { getActiveUser, setActiveUser, Employee } from '@/lib/mockDb';
+import { useEffect, useState } from 'react';
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const [activeUser, setActiveUserLocal] = useState<Employee | null>(null);
+  
+  useEffect(() => {
+    setActiveUserLocal(getActiveUser());
+  }, []);
 
-  const navItems = [
+  const allNavItems = [
     { label: 'Dashboard', href: '/', icon: LayoutDashboard },
     { label: 'Customers', href: '/customers', icon: Users },
     { label: 'Products', href: '/products', icon: Package },
@@ -28,9 +40,17 @@ export default function Sidebar() {
     { label: 'Delivery', href: '/delivery', icon: Truck },
     { label: 'Invoices', href: '/invoices', icon: FileText },
     { label: 'Payments', href: '/payments', icon: CreditCard },
+    { label: 'Cashbook', href: '/cashbook', icon: Wallet },
     { label: 'Warranty', href: '/warranties', icon: ShieldCheck },
     { label: 'Reports', href: '/reports', icon: BarChart3 },
   ];
+
+  // Filter items based on user role and assigned modules
+  const navItems = allNavItems.filter(item => {
+    if (!activeUser) return false;
+    if (activeUser.role === 'Admin') return true;
+    return activeUser.modules.includes(item.label);
+  });
 
   return (
     <aside className="sidebar">
@@ -68,11 +88,34 @@ export default function Sidebar() {
           })}
         </div>
 
-        <div style={{ marginTop: 'auto', paddingTop: '2rem' }}>
-          <Link href="/settings" className={`nav-link ${pathname === '/settings' ? 'active' : ''}`}>
-            <Settings size={18} />
-            <span>Settings</span>
-          </Link>
+        <div style={{ marginTop: 'auto', paddingTop: '2rem', display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+          {activeUser?.role === 'Admin' && (
+            <>
+              <Link href="/hr" className={`nav-link ${pathname === '/hr' ? 'active' : ''}`}>
+                <Calculator size={18} />
+                <span>HR Module</span>
+              </Link>
+              <Link href="/employees" className={`nav-link ${pathname === '/employees' ? 'active' : ''}`}>
+                <UserCog size={18} />
+                <span>Employees</span>
+              </Link>
+              <Link href="/settings" className={`nav-link ${pathname === '/settings' ? 'active' : ''}`}>
+                <Settings size={18} />
+                <span>Settings</span>
+              </Link>
+            </>
+          )}
+          <button 
+            className="nav-link" 
+            style={{ marginTop: '0.5rem', color: 'var(--danger)', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+            onClick={() => {
+              setActiveUser(null);
+              window.location.href = '/login';
+            }}
+          >
+            <LogOut size={18} />
+            <span>Logout</span>
+          </button>
         </div>
       </nav>
     </aside>

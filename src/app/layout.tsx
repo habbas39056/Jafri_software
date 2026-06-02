@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import Sidebar from "@/components/Sidebar";
+import ClientLayout from "@/components/ClientLayout";
 
 export const metadata: Metadata = {
   title: "Jafri & Co | Business Management System",
@@ -15,12 +15,9 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body suppressHydrationWarning>
-        <div className="layout-wrapper">
-          <Sidebar />
-          <main className="main-content">
-            {children}
-          </main>
-        </div>
+        <ClientLayout>
+          {children}
+        </ClientLayout>
       </body>
     </html>
   );

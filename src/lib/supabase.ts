@@ -1,10 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const mockFetch = async (url: string, options: any) => {
+  return new Response(JSON.stringify([]), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' }
+  });
+};
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Supabase URL or Anon Key is missing in .env file!');
-}
-
-export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
+export const supabase = createClient('https://mock.supabase.co', 'mock-key', {
+  global: { fetch: mockFetch as any }
+});
