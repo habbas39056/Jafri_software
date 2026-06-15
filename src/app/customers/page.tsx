@@ -1,38 +1,44 @@
-import { supabase } from '@/lib/supabase';
+'use client';
+
+import { useState, useEffect, use } from 'react';
 import { Plus } from 'lucide-react';
 import Link from 'next/link';
 import CustomerSearch from '@/components/CustomerSearch';
 import CustomerActions from '@/components/CustomerActions';
+import { getCustomers, Customer } from '@/lib/mockDb';
 
-export default async function CustomersPage({
+export default function CustomersPage({
   searchParams,
 }: {
   searchParams: Promise<{ q?: string }> | { q?: string };
 }) {
-  const resolvedSearchParams = await searchParams;
+  const resolvedSearchParams = searchParams instanceof Promise ? use(searchParams as Promise<{ q?: string }>) : searchParams;
   const query = resolvedSearchParams?.q || '';
 
-  let customers: any[] = [];
-  let error: string | null = null;
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
-  try {
-    let supabaseQuery = supabase
-      .from('Customer')
-      .select('*')
-      .order('created_at', { ascending: false });
+  useEffect(() => {
+    try {
+      let data = getCustomers();
 
-    if (query) {
-      supabaseQuery = supabaseQuery.or(`customer_name.ilike.%${query}%,ntn.ilike.%${query}%,vendor_code.ilike.%${query}%,phone.ilike.%${query}%`);
+      if (query) {
+        const lowerQuery = query.toLowerCase();
+        data = data.filter((c: any) => 
+          c.customer_name?.toLowerCase().includes(lowerQuery) ||
+          c.ntn?.toLowerCase().includes(lowerQuery) ||
+          c.vendor_code?.toLowerCase().includes(lowerQuery) ||
+          c.phone?.toLowerCase().includes(lowerQuery)
+        );
+      }
+
+      data.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      setCustomers(data);
+    } catch (e: any) {
+      console.error("Local storage error in CustomersPage:", e);
+      setError(e.message || "Could not fetch from local storage.");
     }
-
-    const { data, error: supabaseError } = await supabaseQuery;
-
-    if (supabaseError) throw supabaseError;
-    customers = data || [];
-  } catch (e: any) {
-    console.error("Supabase error in CustomersPage:", e);
-    error = e.message || "Could not connect to the database.";
-  }
+  }, [query]);
 
   return (
     <div className="animate-fade-in">
@@ -53,8 +59,7 @@ export default async function CustomersPage({
 
       {error && (
         <div style={{ padding: '1rem', background: '#fee2e2', color: '#b91c1c', borderRadius: '8px', marginBottom: '1rem', border: '1px solid #fecaca' }}>
-          <strong>Database Connection Error:</strong> {error}
-          <p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>Make sure your database is initialized and the DATABASE_URL is correct.</p>
+          <strong>Error:</strong> {error}
         </div>
       )}
 

@@ -1,33 +1,69 @@
-import { supabase } from '@/lib/supabase';
+'use client';
+
+import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Truck, FileText } from 'lucide-react';
-import { notFound } from 'next/navigation';
 import PrintButton from '@/components/PrintButton';
+import { getPurchaseOrders, getCustomers, getProducts, getChallans } from '@/lib/mockDb';
 
-export default async function PODetailsPage({ params }: { params: Promise<{ id: string }> | { id: string } }) {
-  const resolvedParams = await params;
+export default function PODetailsPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = use(params);
   const id = parseInt(resolvedParams.id, 10);
+  const [po, setPo] = useState<any | null>(null);
 
-  if (isNaN(id)) {
-    notFound();
-  }
+  useEffect(() => {
+    const allPos = getPurchaseOrders();
+    const allCustomers = getCustomers();
+    const allProducts = getProducts();
+    const allChallans = getChallans();
 
-  const { data: po, error } = await supabase
-    .from('PurchaseOrder')
-    .select('*, customer:Customer(*), items:POItem(*, product:Product(*)), production:ProductionTracking(*), challans:Challan(*), invoices:Invoice(*)')
-    .eq('id', id)
-    .single();
+    const currentPo = allPos.find(p => p.id === id);
+    if (currentPo) {
+      // Calculate production details based on challans
+      const deliveredMap: Record<number, number> = {};
+      allChallans.filter(c => c.po_id === id).forEach(c => {
+        c.items.forEach(i => {
+          deliveredMap[i.product_id] = (deliveredMap[i.product_id] || 0) + i.delivered_qty;
+        });
+      });
 
-  if (error || !po) {
-    notFound();
-  }
+      const production = (currentPo.items || []).map(item => {
+        const delivered = deliveredMap[item.product_id] || 0;
+        const pending = item.quantity - delivered;
+        return {
+          id: item.product_id,
+          product_id: item.product_id,
+          ordered_qty: item.quantity,
+          delivered_qty: delivered,
+          rejected_qty: 0,
+          pending_qty: pending,
+          status: pending === 0 ? 'Delivered' : delivered > 0 ? 'Partial' : 'Pending'
+        };
+      });
 
+      setPo({
+        ...currentPo,
+        customer: allCustomers.find(c => c.id === currentPo.customer_id) || { customer_name: 'Unknown', address: '', vendor_code: '', ntn: '', sales_tax_registration: '' },
+        items: (currentPo.items || []).map(item => ({
+          ...item,
+          product: allProducts.find(p => p.id === item.product_id) || { product_name: 'Unknown', product_code: '' }
+        })),
+        production
+      });
+    }
+  }, [id]);
 
   if (!po) {
-    notFound();
+    return (
+      <div className="animate-fade-in" style={{ padding: '2rem', textAlign: 'center' }}>
+        <h2>PO Not Found</h2>
+        <p style={{ color: '#64748b', marginTop: '0.5rem' }}>The requested Purchase Order could not be loaded.</p>
+        <Link href="/purchase-orders" className="btn btn-primary" style={{ marginTop: '1.5rem', display: 'inline-flex' }}>Back to Purchase Orders</Link>
+      </div>
+    );
   }
 
-  const grandTotal = po.items.reduce((sum: number, item: any) => sum + item.total_amount, 0);
+  const grandTotal = (po.items || []).reduce((sum: number, item: any) => sum + item.total_amount, 0);
 
   return (
     <>
@@ -193,8 +229,8 @@ export default async function PODetailsPage({ params }: { params: Promise<{ id: 
                 </tr>
               </thead>
               <tbody>
-                {po.items.map((item: any) => (
-                  <tr key={item.id}>
+                {(po.items || []).map((item: any, index: number) => (
+                  <tr key={item.id || item.product_id || index}>
                     <td>{item.product.product_code}</td>
                     <td style={{ fontWeight: 600 }}>{item.product.product_name}</td>
                     <td>{item.quantity}</td>
@@ -228,10 +264,10 @@ export default async function PODetailsPage({ params }: { params: Promise<{ id: 
                 </tr>
               </thead>
               <tbody>
-                {po.production.map((prod: any) => {
-                  const product = po.items.find((i: any) => i.product_id === prod.product_id)?.product;
+                {po.production.map((prod: any, index: number) => {
+                  const product = (po.items || []).find((i: any) => i.product_id === prod.product_id)?.product;
                   return (
-                    <tr key={prod.id}>
+                    <tr key={prod.id || prod.product_id || index}>
                       <td style={{ fontWeight: 600 }}>{product?.product_name}</td>
                       <td>{prod.ordered_qty}</td>
                       <td style={{ color: 'var(--success)', fontWeight: 600 }}>{prod.delivered_qty}</td>
@@ -293,13 +329,13 @@ export default async function PODetailsPage({ params }: { params: Promise<{ id: 
               </tr>
             </thead>
             <tbody>
-              {po.items.map((item: any, index: number) => {
+              {(po.items || []).map((item: any, index: number) => {
                 const amount = item.total_amount;
                 const gstRate = (po.gst_percentage || 18) / 100;
                 const gst = amount * gstRate;
                 const net = amount + gst;
                 return (
-                  <tr key={item.id}>
+                  <tr key={item.id || item.product_id || index}>
                     <td>{index + 1}</td>
                     <td>{item.product.product_name}</td>
                     <td>{item.product.product_code}</td>
@@ -312,9 +348,9 @@ export default async function PODetailsPage({ params }: { params: Promise<{ id: 
                 );
               })}
               {/* Fill empty rows up to 10 minimum for that excel look */}
-              {Array.from({ length: Math.max(0, 10 - po.items.length) }).map((_, i) => (
+              {Array.from({ length: Math.max(0, 10 - (po.items || []).length) }).map((_, i) => (
                 <tr key={`empty-${i}`}>
-                  <td>{po.items.length + i + 1}</td>
+                  <td>{(po.items || []).length + i + 1}</td>
                   <td>&nbsp;</td>
                   <td></td>
                   <td></td>
@@ -326,7 +362,7 @@ export default async function PODetailsPage({ params }: { params: Promise<{ id: 
               ))}
               <tr className="total-row">
                 <td colSpan={4} style={{ textAlign: 'right', paddingRight: '10px' }}>Total</td>
-                <td>{po.items.reduce((sum: number, item: any) => sum + item.quantity, 0)}</td>
+                <td>{(po.items || []).reduce((sum: number, item: any) => sum + item.quantity, 0)}</td>
                 <td>{grandTotal}</td>
                 <td>{grandTotal * ((po.gst_percentage || 18) / 100)}</td>
                 <td>{grandTotal * (1 + ((po.gst_percentage || 18) / 100))}</td>

@@ -1,29 +1,37 @@
-import { supabase } from '@/lib/supabase';
+'use client';
+
+import { useState, useEffect } from 'react';
 import { Plus, Wallet, ArrowDownRight, ArrowUpRight, Inbox } from 'lucide-react';
 import Link from 'next/link';
+import { getCashbookEntries } from '@/lib/mockDb';
 
-export default async function CashbookPage() {
-  const { data, error } = await supabase
-    .from('Cashbook')
-    .select('*')
-    .order('date', { ascending: false });
+export default function CashbookPage() {
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
-  let transactions = (data || []) as any[];
+  useEffect(() => {
+    try {
+      let data = getCashbookEntries();
 
-  // ---------------------------------------------------------
-  // DUMMY DATA INJECTION FOR VISUAL PREVIEW (Since DB is mocked)
-  // ---------------------------------------------------------
-  if (transactions.length === 0) {
-    transactions = [
-      { id: '1', date: '2026-06-01', description: 'Office Petty Cash Topup', category: 'Petty Cash', transaction_type: 'IN', amount: 50000, reference: 'TRX-9901' },
-      { id: '2', date: '2026-06-02', description: 'KE Electricity Bill', category: 'Utility Bill', transaction_type: 'OUT', amount: 15500, reference: 'KE-112' },
-      { id: '3', date: '2026-06-05', description: 'Office Supplies (Stationery)', category: 'Miscellaneous', transaction_type: 'OUT', amount: 3200, reference: 'RCPT-44' },
-      { id: '4', date: '2026-06-08', description: 'Internet Bill (PTCL)', category: 'Utility Bill', transaction_type: 'OUT', amount: 5500, reference: 'PTCL-88' },
-      { id: '5', date: '2026-06-10', description: 'Client Advance Payment', category: 'Bank Deposit', transaction_type: 'IN', amount: 100000, reference: 'CHK-123' },
-      { id: '6', date: '2026-06-12', description: 'Tea and Refreshments', category: 'Petty Cash', transaction_type: 'OUT', amount: 1500, reference: 'RCPT-45' },
-    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }
-  // ---------------------------------------------------------
+      // ---------------------------------------------------------
+      // DUMMY DATA INJECTION FOR VISUAL PREVIEW (Since DB is mocked)
+      // ---------------------------------------------------------
+      if (data.length === 0) {
+        data = [
+          { id: 1, date: '2026-06-01', description: 'Office Petty Cash Topup', category: 'Petty Cash', transaction_type: 'IN', amount: 50000, reference: 'TRX-9901' },
+          { id: 2, date: '2026-06-02', description: 'KE Electricity Bill', category: 'Utility Bill', transaction_type: 'OUT', amount: 15500, reference: 'KE-112' },
+          { id: 3, date: '2026-06-05', description: 'Office Supplies (Stationery)', category: 'Miscellaneous', transaction_type: 'OUT', amount: 3200, reference: 'RCPT-44' },
+          { id: 4, date: '2026-06-08', description: 'Internet Bill (PTCL)', category: 'Utility Bill', transaction_type: 'OUT', amount: 5500, reference: 'PTCL-88' },
+          { id: 5, date: '2026-06-10', description: 'Client Advance Payment', category: 'Bank Deposit', transaction_type: 'IN', amount: 100000, reference: 'CHK-123' },
+          { id: 6, date: '2026-06-12', description: 'Tea and Refreshments', category: 'Petty Cash', transaction_type: 'OUT', amount: 1500, reference: 'RCPT-45' },
+        ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) as any[];
+      }
+      
+      setTransactions(data);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load cashbook entries');
+    }
+  }, []);
 
   let totalIn = 0;
   let totalOut = 0;
@@ -45,7 +53,7 @@ export default async function CashbookPage() {
   });
 
   // Re-sort descending for display
-  transactions = sortedForBalance.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const displayTransactions = sortedForBalance.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   return (
     <div className="animate-fade-in">
@@ -64,7 +72,7 @@ export default async function CashbookPage() {
 
       {error && (
         <div style={{ padding: '1rem', background: 'var(--danger-soft)', color: 'var(--danger)', borderRadius: '8px', marginBottom: '1.5rem', border: '1px solid rgba(239,68,68,0.2)' }}>
-          <strong>Database Error:</strong> {error.message}
+          <strong>Database Error:</strong> {error}
         </div>
       )}
 
@@ -128,7 +136,7 @@ export default async function CashbookPage() {
               </tr>
             </thead>
             <tbody>
-              {transactions.length > 0 ? transactions.map((trx) => (
+              {displayTransactions.length > 0 ? displayTransactions.map((trx) => (
                 <tr key={trx.id}>
                   <td style={{ color: '#64748b' }}>
                     {new Date(trx.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}

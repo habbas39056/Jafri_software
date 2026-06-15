@@ -1,34 +1,41 @@
-import { supabase } from '@/lib/supabase';
+'use client';
+
+import { useState, useEffect, use } from 'react';
 import { Plus, Tag } from 'lucide-react';
 import Link from 'next/link';
 import ProductSearch from '@/components/ProductSearch';
 import ProductActions from '@/components/ProductActions';
+import { getProducts, Product } from '@/lib/mockDb';
 
-export default async function ProductsPage({
+export default function ProductsPage({
   searchParams,
 }: {
   searchParams: Promise<{ q?: string }> | { q?: string };
 }) {
-  const resolvedSearchParams = await searchParams;
+  const resolvedSearchParams = searchParams instanceof Promise ? use(searchParams as Promise<any>) : searchParams;
   const query = resolvedSearchParams?.q || '';
 
-  let products: any[] = [];
-  try {
-    let supabaseQuery = supabase
-      .from('Product')
-      .select('*')
-      .order('created_at', { ascending: false });
+  const [products, setProducts] = useState<Product[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
-    if (query) {
-      supabaseQuery = supabaseQuery.or(`product_name.ilike.%${query}%,product_code.ilike.%${query}%`);
+  useEffect(() => {
+    try {
+      let data = getProducts();
+      
+      if (query) {
+        const lowerQuery = query.toLowerCase();
+        data = data.filter(p => 
+          p.product_name.toLowerCase().includes(lowerQuery) ||
+          p.product_code.toLowerCase().includes(lowerQuery)
+        );
+      }
+
+      data.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      setProducts(data);
+    } catch (e: any) {
+      setError(e.message || "Could not fetch from local storage.");
     }
-
-    const { data, error } = await supabaseQuery;
-    if (error) throw error;
-    products = data || [];
-  } catch (error) {
-    console.error('Supabase error in ProductsPage:', error);
-  }
+  }, [query]);
 
   return (
     <div className="animate-fade-in">

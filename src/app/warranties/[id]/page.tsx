@@ -1,32 +1,58 @@
-import { supabase } from '@/lib/supabase';
+'use client';
+
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Printer, Download, ShieldCheck } from 'lucide-react';
 import PrintButton from '@/components/PrintButton';
+import { use, useEffect, useState } from 'react';
+import { getWarranties, getCustomers, getInvoices, getPurchaseOrders, getChallans } from '@/lib/mockDb';
 
-export default async function WarrantyDetailsPage({ 
+export default function WarrantyDetailsPage({ 
   params,
   searchParams 
 }: { 
   params: Promise<{ id: string }> | { id: string },
   searchParams: Promise<{ download?: string }> | { download?: string }
 }) {
-  const resolvedParams = await params;
-  const resolvedSearchParams = await searchParams;
+  const resolvedParams = use(params as Promise<{ id: string }>);
+  const resolvedSearchParams = use(searchParams as Promise<{ download?: string }>);
   const id = parseInt(resolvedParams.id, 10);
 
-  if (isNaN(id)) notFound();
+  const [warranty, setWarranty] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const { data: warranty, error } = await supabase
-    .from('Warranty')
-    .select('*, customer:Customer(*), invoice:Invoice(*, items:InvoiceItem(*, product:Product(*)), po:PurchaseOrder(*, challans:Challan(*))), challan:Challan(*, items:ChallanItem(*, product:Product(*))), po:PurchaseOrder(*)')
-    .eq('id', id)
-    .single();
+  useEffect(() => {
+    if (isNaN(id)) return;
 
-  if (error || !warranty) notFound();
+    const allWarranties = getWarranties();
+    const w = allWarranties.find(x => x.id === id);
 
+    if (w) {
+      const allCustomers = getCustomers();
+      const allInvoices = getInvoices();
+      const allPOs = getPurchaseOrders();
+      const allChallans = getChallans();
 
-  if (!warranty) notFound();
+      const customer = allCustomers.find(c => c.id === w.customer_id);
+      const invoice = allInvoices.find(i => i.id === w.invoice_id) || null;
+      const challan = allChallans.find(c => c.id === w.challan_id) || null;
+      const po = invoice ? allPOs.find(p => p.id === invoice.po_id) : (challan ? allPOs.find(p => p.id === challan.po_id) : null);
+
+      setWarranty({
+        ...w,
+        customer,
+        invoice: invoice ? { ...invoice, po } : null,
+        challan,
+        po
+      });
+    }
+
+    setLoading(false);
+  }, [id]);
+
+  if (isNaN(id)) return notFound();
+  if (loading) return <div style={{ padding: '2rem' }}>Loading...</div>;
+  if (!warranty) return notFound();
 
   return (
     <>
@@ -177,8 +203,8 @@ export default async function WarrantyDetailsPage({
            <div style={{ marginTop: '2rem' }}>
               <p style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Covered Items</p>
               <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: 'var(--radius)', marginTop: '0.5rem' }}>
-                {(warranty.invoice?.items || warranty.challan?.items || []).map((item: any) => (
-                  <p key={item.id} style={{ fontWeight: 500 }}>• {item.product.product_name}</p>
+                {(warranty.invoice?.items || warranty.challan?.items || []).map((item: any, index: number) => (
+                  <p key={item.id || item.product_id || index} style={{ fontWeight: 500 }}>• {item.product?.product_name || `Product ID ${item.product_id}`}</p>
                 ))}
               </div>
            </div>
@@ -229,8 +255,8 @@ export default async function WarrantyDetailsPage({
 
           <div className="product-list-container">
             <div className="product-list-header">Product(s)/Service</div>
-            {(warranty.invoice?.items || warranty.challan?.items || []).map((item: any) => (
-              <div key={item.id} className="product-name">{item.product.product_name}</div>
+            {(warranty.invoice?.items || warranty.challan?.items || []).map((item: any, index: number) => (
+              <div key={item.id || item.product_id || index} className="product-name">{item.product?.product_name || `Product ID ${item.product_id}`}</div>
             ))}
           </div>
 

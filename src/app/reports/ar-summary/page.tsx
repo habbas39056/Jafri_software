@@ -1,15 +1,39 @@
-import { supabase } from '@/lib/supabase';
+'use client';
+
+import { useState, useEffect } from 'react';
 import { Download, FileText, Printer } from 'lucide-react';
 import PrintButton from '@/components/PrintButton';
+import { getInvoices, getCustomers, getPurchaseOrders, getChallans, getPayments } from '@/lib/mockDb';
 
-export default async function ARSummaryReport() {
-  const { data: invoicesData } = await supabase
-    .from('Invoice')
-    .select('*, customer:Customer(*), po:PurchaseOrder(*, challans:Challan(*)), payments:Payment(*)')
-    .order('invoice_date', { ascending: false });
+export default function ARSummaryReport() {
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [dbError, setDbError] = useState<string | null>(null);
 
-  const invoices = (invoicesData || []) as any[];
+  useEffect(() => {
+    try {
+      const allInvoices = getInvoices();
+      const allCustomers = getCustomers();
+      const allPOs = getPurchaseOrders();
+      const allChallans = getChallans();
+      const allPayments = getPayments();
 
+      const populated = allInvoices.map(inv => {
+        const po = allPOs.find(p => p.id === inv.po_id);
+        const poChallans = allChallans.filter(c => c.po_id === inv.po_id);
+        
+        return {
+          ...inv,
+          customer: allCustomers.find(c => c.id === inv.customer_id) || { customer_name: 'Unknown' },
+          po: po ? { ...po, challans: poChallans } : null,
+          payments: allPayments.filter(p => p.invoice_id === inv.id)
+        };
+      }).sort((a, b) => new Date(b.invoice_date).getTime() - new Date(a.invoice_date).getTime());
+
+      setInvoices(populated);
+    } catch (err: any) {
+      setDbError(err.message || 'Failed to fetch AR summary data');
+    }
+  }, []);
 
   const today = new Date();
 
@@ -28,6 +52,12 @@ export default async function ARSummaryReport() {
           <PrintButton />
         </div>
       </header>
+
+      {dbError && (
+        <div style={{ padding: '1rem', background: '#fee2e2', color: '#b91c1c', borderRadius: '8px', marginBottom: '1.5rem', border: '1px solid #fecaca' }}>
+          <strong>Database Error:</strong> {dbError}
+        </div>
+      )}
 
       <div className="card" style={{ overflowX: 'auto', padding: '0', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
         <table className="report-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0', fontSize: '11px', fontFamily: 'Inter, system-ui, sans-serif' }}>
@@ -70,7 +100,7 @@ export default async function ARSummaryReport() {
               return (
                 <tr key={inv.id} style={{ background: idx % 2 === 0 ? '#ffffff' : '#f8fafc', transition: 'background 0.2s' }}>
                   <td style={{ padding: '10px 8px', borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', position: 'sticky', left: 0, background: idx % 2 === 0 ? '#ffffff' : '#f8fafc', fontWeight: 600 }}>{inv.customer.customer_name}</td>
-                  <td style={{ padding: '10px 8px', borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0' }}>{inv.po.po_number}</td>
+                  <td style={{ padding: '10px 8px', borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0' }}>{inv.po?.po_number || '-'}</td>
                   <td style={{ padding: '10px 8px', borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', color: '#6366f1', fontWeight: 500 }}>{inv.invoice_number}</td>
                   <td style={{ padding: '10px 8px', borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>{new Date(inv.invoice_date).toLocaleDateString('en-GB')}</td>
                   <td style={{ padding: '10px 8px', borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', textAlign: 'right' }}>{inv.subtotal.toLocaleString()}</td>

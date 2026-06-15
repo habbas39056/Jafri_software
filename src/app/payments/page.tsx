@@ -1,32 +1,45 @@
-import { supabase } from '@/lib/supabase';
+'use client';
+
+import { useState, useEffect, use } from 'react';
 import { CreditCard, Plus, Search, DollarSign, Calendar } from 'lucide-react';
 import Link from 'next/link';
+import { getPayments, getCustomers, getInvoices } from '@/lib/mockDb';
 
-export default async function PaymentsPage({
+export default function PaymentsPage({
   searchParams,
 }: {
   searchParams: Promise<{ q?: string }> | { q?: string };
 }) {
-  const resolvedSearchParams = await searchParams;
+  const resolvedSearchParams = use(searchParams as Promise<{ q?: string }>);
   const query = resolvedSearchParams?.q || '';
 
-  let payments: any[] = [];
-  try {
-    let supabaseQuery = supabase
-      .from('Payment')
-      .select('*, customer:Customer(*), invoice:Invoice(*)')
-      .order('payment_date', { ascending: false });
+  const [payments, setPayments] = useState<any[]>([]);
+
+  useEffect(() => {
+    const allPayments = getPayments();
+    const allCustomers = getCustomers();
+    const allInvoices = getInvoices();
+
+    let formattedPayments = allPayments.map(p => ({
+      ...p,
+      customer: allCustomers.find(c => c.id === p.customer_id) || { customer_name: 'Unknown' },
+      invoice: allInvoices.find(i => i.id === p.invoice_id) || { invoice_number: 'Unknown' }
+    }));
 
     if (query) {
-      supabaseQuery = supabaseQuery.or(`payment_method.ilike.%${query}%,customer(customer_name).ilike.%${query}%,invoice(invoice_number).ilike.%${query}%`);
+      const q = query.toLowerCase();
+      formattedPayments = formattedPayments.filter(p => 
+        p.payment_method.toLowerCase().includes(q) ||
+        p.customer.customer_name.toLowerCase().includes(q) ||
+        p.invoice.invoice_number.toLowerCase().includes(q)
+      );
     }
 
-    const { data, error } = await supabaseQuery;
-    if (error) throw error;
-    payments = data || [];
-  } catch (error) {
-    console.error('Supabase error in PaymentsPage:', error);
-  }
+    // sort descending by date
+    formattedPayments.sort((a, b) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime());
+
+    setPayments(formattedPayments);
+  }, [query]);
 
   const totalCollected = payments.reduce((sum, p) => sum + p.amount_paid, 0);
 

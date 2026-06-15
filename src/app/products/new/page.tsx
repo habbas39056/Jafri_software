@@ -1,13 +1,45 @@
 'use client';
 
-import { createProduct } from '../actions';
+import { saveProduct } from '@/lib/mockDb';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ArrowLeft, Save, Upload, X } from 'lucide-react';
-import { useActionState, useState } from 'react';
+import { useState } from 'react';
 
 export default function NewProductPage() {
-  const [state, formAction, isPending] = useActionState(createProduct, null);
+  const router = useRouter();
+  const [isPending, setIsPending] = useState(false);
+  const [error, setError] = useState('');
   const [preview, setPreview] = useState<string | null>(null);
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsPending(true);
+    setError('');
+
+    const form = e.currentTarget;
+    const product_name = (form.elements.namedItem('product_name') as HTMLInputElement).value;
+    const product_code = (form.elements.namedItem('product_code') as HTMLInputElement).value;
+    const unit_price = parseFloat((form.elements.namedItem('unit_price') as HTMLInputElement).value);
+    const hs_code = (form.elements.namedItem('hs_code') as HTMLInputElement).value;
+
+    try {
+      saveProduct({
+        product_name,
+        product_code,
+        category: 'General',
+        unit_price,
+        stock_quantity: 0,
+        // @ts-ignore (we aren't defining hs_code or image_url in Product mock schema fully but JS accepts it)
+        hs_code,
+        image_url: preview || ''
+      });
+      router.push('/products');
+    } catch (err: any) {
+      setError(err.message || 'Failed to save product');
+      setIsPending(false);
+    }
+  };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -44,10 +76,10 @@ export default function NewProductPage() {
       </header>
 
       <div className="card" style={{ maxWidth: '600px', margin: '0 auto' }}>
-        <form action={formAction} style={{ display: 'grid', gap: '1.5rem' }}>
-          {state?.error && (
+        <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '1.5rem' }}>
+          {error && (
             <div style={{ padding: '0.75rem', background: '#fee2e2', color: '#991b1b', borderRadius: 'var(--radius)', fontSize: '0.875rem' }}>
-              {state.error}
+              {error}
             </div>
           )}
           

@@ -1,26 +1,54 @@
-import { supabase } from '@/lib/supabase';
+'use client';
+
+import { useState, useEffect, use } from 'react';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Printer, Download } from 'lucide-react';
 import InvoiceStatusActions from '@/components/InvoiceStatusActions';
 import InvoicePrintActions from '@/components/InvoicePrintActions';
+import { getInvoices, getCustomers, getPurchaseOrders, getProducts, getChallans } from '@/lib/mockDb';
 
-export default async function InvoiceDetailsPage({ params }: { params: Promise<{ id: string }> | { id: string } }) {
-  const resolvedParams = await params;
+export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = use(params);
   const id = parseInt(resolvedParams.id, 10);
+  const [invoice, setInvoice] = useState<any | null>(null);
 
-  if (isNaN(id)) notFound();
+  useEffect(() => {
+    const allInvoices = getInvoices();
+    const allCustomers = getCustomers();
+    const allPos = getPurchaseOrders();
+    const allProducts = getProducts();
+    const allChallans = getChallans();
 
-  const { data: invoice, error } = await supabase
-    .from('Invoice')
-    .select('*, customer:Customer(*), po:PurchaseOrder(*, challans:Challan(*)), items:InvoiceItem(*, product:Product(*)), sales_tax_info:SalesTaxInvoice(*)')
-    .eq('id', id)
-    .single();
+    const currentInvoice = allInvoices.find(inv => inv.id === id);
+    if (currentInvoice) {
+      const po = allPos.find(p => p.id === currentInvoice.po_id) || { po_number: 'Unknown' };
+      setInvoice({
+        ...currentInvoice,
+        customer: allCustomers.find(c => c.id === currentInvoice.customer_id) || { customer_name: 'Unknown', address: '', ntn: '', sales_tax_registration: '', vendor_code: '' },
+        po: {
+          ...po,
+          challans: allChallans.filter(c => c.po_id === currentInvoice.po_id)
+        },
+        items: ((po as any).items || []).map((item: any) => ({
+          ...item,
+          amount: item.total_amount || (item.quantity * item.rate),
+          product: allProducts.find(p => p.id === item.product_id) || { product_name: 'Unknown', product_code: '' }
+        })),
+        sales_tax_info: { gst_percentage: (currentInvoice as any).gst_percentage || 18 }
+      });
+    }
+  }, [id]);
 
-  if (error || !invoice) notFound();
-
-
-  if (!invoice) notFound();
+  if (!invoice) {
+    return (
+      <div className="animate-fade-in" style={{ padding: '2rem', textAlign: 'center' }}>
+        <h2>Invoice Not Found</h2>
+        <p style={{ color: '#64748b', marginTop: '0.5rem' }}>The requested Invoice could not be loaded.</p>
+        <Link href="/invoices" className="btn btn-primary" style={{ marginTop: '1.5rem', display: 'inline-flex' }}>Back to Invoices</Link>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -239,8 +267,8 @@ export default async function InvoiceDetailsPage({ params }: { params: Promise<{
                 </tr>
               </thead>
               <tbody>
-                {invoice.items.map((item: any) => (
-                  <tr key={item.id}>
+                {invoice.items.map((item: any, index: number) => (
+                  <tr key={item.id || item.product_id || index}>
                     <td>{item.product.product_code}</td>
                     <td style={{ fontWeight: 600 }}>{item.product.product_name}</td>
                     <td>{item.quantity}</td>
@@ -313,7 +341,7 @@ export default async function InvoiceDetailsPage({ params }: { params: Promise<{
             </thead>
             <tbody>
               {invoice.items.map((item: any, index: number) => (
-                <tr key={item.id}>
+                <tr key={item.id || item.product_id || index}>
                   <td style={{ textAlign: 'center' }}>{index + 1}</td>
                   <td style={{ textAlign: 'center' }}>{item.product.product_code}</td>
                   <td>{item.product.product_name}</td>
@@ -401,7 +429,7 @@ export default async function InvoiceDetailsPage({ params }: { params: Promise<{
             </thead>
             <tbody>
               {invoice.items.map((item: any, index: number) => (
-                <tr key={item.id}>
+                <tr key={item.id || item.product_id || index}>
                   <td style={{ textAlign: 'center' }}>{index + 1}</td>
                   <td style={{ textAlign: 'center' }}>{item.quantity}</td>
                   <td style={{ textAlign: 'center' }}>{item.rate.toLocaleString()}</td>

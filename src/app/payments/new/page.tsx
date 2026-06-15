@@ -1,20 +1,83 @@
 'use client';
 
-import { createPayment, getUnpaidInvoices } from '../actions';
-import { useActionState, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Save, DollarSign } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { getInvoices, getCustomers, getPayments, savePayment, updateInvoiceDb } from '@/lib/mockDb';
 
 export default function NewPaymentPage() {
-  const [state, formAction, isPending] = useActionState(createPayment, null);
+  const router = useRouter();
   const [invoices, setInvoices] = useState<any[]>([]);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState('');
+  const [isPending, setIsPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getUnpaidInvoices().then(setInvoices);
+    const allInvoices = getInvoices();
+    const allCustomers = getCustomers();
+    
+    const unpaid = allInvoices
+      .filter(inv => inv.status !== 'Paid')
+      .map(inv => ({
+        ...inv,
+        customer: allCustomers.find(c => c.id === inv.customer_id) || { customer_name: 'Unknown' }
+      }))
+      .sort((a, b) => new Date(b.invoice_date).getTime() - new Date(a.invoice_date).getTime());
+      
+    setInvoices(unpaid);
   }, []);
 
   const selectedInvoice = invoices.find(inv => inv.id.toString() === selectedInvoiceId);
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsPending(true);
+    setError(null);
+
+    try {
+      const formData = new FormData(e.currentTarget);
+      const invoice_id_str = formData.get('invoice_id') as string;
+      const amount_paid_str = formData.get('amount_paid') as string;
+      const payment_method = formData.get('payment_method') as string;
+      const payment_date = formData.get('payment_date') as string;
+      const remarks = formData.get('remarks') as string;
+
+      if (!invoice_id_str || !amount_paid_str || !payment_method || !payment_date) {
+        throw new Error('Please fill in all required fields.');
+      }
+
+      const invoice_id = parseInt(invoice_id_str);
+      const amount_paid = parseFloat(amount_paid_str);
+
+      if (!selectedInvoice) throw new Error('Invoice not found.');
+
+      const allPayments = getPayments();
+      const invoicePayments = allPayments.filter(p => p.invoice_id === invoice_id);
+      const totalPaidSoFar = invoicePayments.reduce((sum, p) => sum + p.amount_paid, 0);
+      const newTotalPaid = totalPaidSoFar + amount_paid;
+
+      savePayment({
+        invoice_id,
+        customer_id: selectedInvoice.customer_id,
+        amount_paid,
+        payment_method,
+        payment_date: new Date(payment_date).toISOString(),
+        remarks,
+        wht_amount: parseFloat(formData.get('wht_amount') as string) || 0,
+        retained_amount: parseFloat(formData.get('retained_amount') as string) || 0,
+        ld_penalty: parseFloat(formData.get('ld_penalty') as string) || 0,
+      } as any);
+
+      const newStatus = newTotalPaid >= selectedInvoice.total_amount ? 'Paid' : 'Partially Paid';
+      updateInvoiceDb(invoice_id, { status: newStatus });
+
+      router.push('/payments');
+    } catch (err: any) {
+      setError(err.message || 'Failed to record payment');
+      setIsPending(false);
+    }
+  };
 
   return (
     <div className="animate-fade-in">
@@ -32,10 +95,10 @@ export default function NewPaymentPage() {
       </header>
 
       <div className="card" style={{ maxWidth: '800px', margin: '0 auto' }}>
-        <form action={formAction} style={{ display: 'grid', gap: '1.5rem' }}>
-          {state?.error && (
+        <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '1.5rem' }}>
+          {error && (
             <div style={{ padding: '0.75rem', background: '#fee2e2', color: '#991b1b', borderRadius: 'var(--radius)' }}>
-              {state.error}
+              {error}
             </div>
           )}
 

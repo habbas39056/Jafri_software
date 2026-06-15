@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Save, Plus } from 'lucide-react';
 import Link from 'next/link';
-import { addCashbookEntry } from '../actions';
+import { saveCashbookEntry } from '@/lib/mockDb';
 
 export default function NewCashbookEntry() {
   const router = useRouter();
@@ -16,14 +16,27 @@ export default function NewCashbookEntry() {
     setLoading(true);
     setError('');
 
-    const formData = new FormData(e.currentTarget);
-    const result = await addCashbookEntry(formData);
+    try {
+      const formData = new FormData(e.currentTarget);
+      const rawAmount = formData.get('amount') as string;
+      const amount = parseFloat(rawAmount || '0');
+      
+      if (isNaN(amount) || amount <= 0) {
+        throw new Error("Amount must be a positive number.");
+      }
 
-    if (result.success) {
-      // Mock behaviour - since DB is mocked it won't persist, so we just redirect
+      saveCashbookEntry({
+        date: formData.get('date') as string,
+        description: formData.get('description') as string,
+        category: formData.get('category') as string,
+        transaction_type: formData.get('transaction_type') as string,
+        amount: amount,
+        reference: formData.get('reference') as string || undefined
+      });
+
       router.push('/cashbook');
-    } else {
-      setError(result.error || 'Failed to create transaction');
+    } catch (err: any) {
+      setError(err.message || 'Failed to create transaction');
       setLoading(false);
     }
   }

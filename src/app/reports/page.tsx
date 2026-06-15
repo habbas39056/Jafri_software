@@ -1,16 +1,31 @@
-import { supabase } from '@/lib/supabase';
+'use client';
+
+import { useState, useEffect } from 'react';
 import { BarChart3, TrendingUp, TrendingDown, Clock, AlertTriangle, FileText } from 'lucide-react';
 import Link from 'next/link';
+import { getInvoices, getCustomers, getPayments } from '@/lib/mockDb';
 
-export default async function ReportsPage() {
-  const { data: invoicesData, error } = await supabase
-    .from('Invoice')
-    .select('*, customer:Customer(*), payments:Payment(*)');
+export default function ReportsPage() {
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [dbError, setDbError] = useState<string | null>(null);
 
-  const invoices = (invoicesData || []) as any[];
-  const dbError = error ? error.message : null;
+  useEffect(() => {
+    try {
+      const allInvoices = getInvoices();
+      const allCustomers = getCustomers();
+      const allPayments = getPayments();
 
+      const populated = allInvoices.map(inv => ({
+        ...inv,
+        customer: allCustomers.find(c => c.id === inv.customer_id) || { customer_name: 'Unknown' },
+        payments: allPayments.filter(p => p.invoice_id === inv.id)
+      }));
 
+      setInvoices(populated);
+    } catch (err: any) {
+      setDbError(err.message || 'Failed to fetch reports data');
+    }
+  }, []);
 
   // Computed data for the summary table
   const summary = invoices.map(inv => {

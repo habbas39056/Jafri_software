@@ -1,76 +1,82 @@
 'use client';
 
-import { useState } from 'react';
-import { createInvoice } from '../actions';
+import { useState, useEffect } from 'react';
+import { saveInvoice, updateInvoiceDb, Customer, PurchaseOrder, Product, Invoice } from '@/lib/mockDb';
 import { FileText, Save, Calculator } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-type PO = {
-  id: number;
-  po_number: string;
-  customer_id: number;
-  customer: { customer_name: string; address: string | null };
-  items: {
-    product_id: number;
-    product: { product_name: string; product_code: string };
-    quantity: number;
-    rate: number;
-  }[];
-  deliveries: any[];
-};
-
-export default function InvoiceForm({ pendingPOs }: { pendingPOs: any[] }) {
+export default function InvoiceForm({ 
+  customers, 
+  pos, 
+  products,
+  initialData 
+}: { 
+  customers: Customer[], 
+  pos: PurchaseOrder[], 
+  products: Product[],
+  initialData?: Invoice 
+}) {
   const router = useRouter();
-  const [selectedPOId, setSelectedPOId] = useState<string>('');
+  const [selectedPOId, setSelectedPOId] = useState<string>(initialData ? initialData.po_id.toString() : '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   
   const [invoiceDetails, setInvoiceDetails] = useState({
-    invoice_number: `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
-    invoice_date: new Date().toISOString().split('T')[0],
-    gst_percentage: 18
+    invoice_number: initialData ? initialData.invoice_number : '',
+    invoice_date: initialData ? new Date(initialData.invoice_date).toISOString().split('T')[0] : '',
+    gst_percentage: 18 // Default, update calculation based on existing if needed, but we don't store percentage. Hardcoding for UI.
   });
 
-  const selectedPO = pendingPOs.find(po => po.id.toString() === selectedPOId);
+  useEffect(() => {
+    if (!initialData) {
+      setInvoiceDetails(prev => ({
+        ...prev,
+        invoice_number: prev.invoice_number || `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+        invoice_date: prev.invoice_date || new Date().toISOString().split('T')[0]
+      }));
+    }
+  }, [initialData]);
+
+  const selectedPO = pos.find(po => po.id.toString() === selectedPOId);
 
   const calculateSubtotal = () => {
     if (!selectedPO) return 0;
-    return selectedPO.items.reduce((sum: number, item: any) => sum + (item.quantity * item.rate), 0);
+    return (selectedPO.items || []).reduce((sum: number, item: any) => sum + (item.quantity * item.rate), 0);
   };
 
   const subtotal = calculateSubtotal();
   const gstAmount = (subtotal * invoiceDetails.gst_percentage) / 100;
   const totalAmount = subtotal + gstAmount;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPO) return;
     
     setIsSubmitting(true);
     setError('');
 
-    const payload = {
-      po_id: selectedPO.id,
-      invoice_number: invoiceDetails.invoice_number,
-      invoice_date: invoiceDetails.invoice_date,
-      gst_percentage: invoiceDetails.gst_percentage,
-      subtotal,
-      gst_amount: gstAmount,
-      total_amount: totalAmount,
-      items: selectedPO.items.map((item: any) => ({
-        product_id: item.product_id,
-        quantity: item.quantity,
-        rate: item.rate,
-        amount: item.quantity * item.rate
-      }))
-    };
+    try {
+      const payload = {
+        po_id: selectedPO.id,
+        customer_id: selectedPO.customer_id,
+        invoice_number: invoiceDetails.invoice_number,
+        invoice_date: invoiceDetails.invoice_date,
+        subtotal,
+        gst_amount: gstAmount,
+        total_amount: totalAmount,
+        status: initialData ? initialData.status : 'Pending'
+      };
 
-    const res = await createInvoice(null, payload);
-    if (res?.error) {
-      setError(res.error);
-      setIsSubmitting(false);
-    } else {
+      if (initialData) {
+        updateInvoiceDb(initialData.id, payload);
+      } else {
+        saveInvoice(payload);
+      }
+      
       router.push('/invoices');
+    } catch (err: any) {
+      setError(err.message || 'Failed to save invoice');
+      setIsSubmitting(false);
     }
   };
 
@@ -90,12 +96,16 @@ export default function InvoiceForm({ pendingPOs }: { pendingPOs: any[] }) {
               required
               value={selectedPOId}
               onChange={e => setSelectedPOId(e.target.value)}
+              disabled={!!initialData}
               style={{ padding: '0.75rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'white' }}
             >
               <option value="">-- Select PO --</option>
-              {pendingPOs.map(po => (
-                <option key={po.id} value={po.id}>{po.po_number} - {po.customer.customer_name}</option>
-              ))}
+              {pos.map(po => {
+                const customer = customers.find(c => c.id === po.customer_id);
+                return (
+                  <option key={po.id} value={po.id}>{po.po_number} - {customer?.customer_name || 'Unknown'}</option>
+                );
+              })}
             </select>
           </div>
 
@@ -149,14 +159,17 @@ export default function InvoiceForm({ pendingPOs }: { pendingPOs: any[] }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedPO.items.map((item: any) => (
-                    <tr key={item.product_id}>
-                      <td style={{ fontWeight: 600 }}>{item.product.product_name}</td>
-                      <td>{item.quantity}</td>
-                      <td>{item.rate.toLocaleString()}</td>
-                      <td style={{ textAlign: 'right' }}>{(item.quantity * item.rate).toLocaleString()}</td>
-                    </tr>
-                  ))}
+                  {(selectedPO.items || []).map((item: any) => {
+                    const product = products.find(p => p.id === item.product_id);
+                    return (
+                      <tr key={item.product_id}>
+                        <td style={{ fontWeight: 600 }}>{product?.product_name || 'Unknown'}</td>
+                        <td>{item.quantity}</td>
+                        <td>{item.rate.toLocaleString()}</td>
+                        <td style={{ textAlign: 'right' }}>{(item.quantity * item.rate).toLocaleString()}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -196,7 +209,7 @@ export default function InvoiceForm({ pendingPOs }: { pendingPOs: any[] }) {
             disabled={isSubmitting || !selectedPO}
           >
             <FileText size={18} />
-            {isSubmitting ? 'Generating...' : 'Generate Tax Invoice'}
+            {isSubmitting ? 'Saving...' : (initialData ? 'Update Invoice' : 'Generate Tax Invoice')}
           </button>
         </div>
       </form>

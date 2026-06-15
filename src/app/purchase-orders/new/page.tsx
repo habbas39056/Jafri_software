@@ -1,19 +1,19 @@
-import { supabase } from '@/lib/supabase';
+'use client';
+
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import POForm from './POForm';
+import { getCustomers, Customer, getProducts, Product } from '@/lib/mockDb';
 
-export default async function NewPOPage() {
-  const { data: customers } = await supabase
-    .from('Customer')
-    .select('*')
-    .order('customer_name', { ascending: true });
-  
-  const { data: products } = await supabase
-    .from('Product')
-    .select('*')
-    .order('product_name', { ascending: true });
+export default function NewPOPage() {
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
 
+  useEffect(() => {
+    setCustomers(getCustomers());
+    setProducts(getProducts());
+  }, []);
 
   return (
     <div className="animate-fade-in">
@@ -30,7 +30,7 @@ export default async function NewPOPage() {
         </div>
       </header>
 
-      <POForm customers={customers || []} products={products || []} />
+      <POForm customers={customers} products={products} />
     </div>
   );
 }

@@ -1,30 +1,44 @@
-import { supabase } from '@/lib/supabase';
+'use client';
+
+import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
-import { notFound } from 'next/navigation';
 import PrintButton from '@/components/PrintButton';
+import { getChallans, getCustomers, getPurchaseOrders, getProducts, Challan } from '@/lib/mockDb';
 
-export default async function GDNDetailsPage({ params }: { params: Promise<{ id: string }> | { id: string } }) {
-  const resolvedParams = await params;
+export default function GDNDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = use(params);
   const id = parseInt(resolvedParams.id, 10);
+  const [challan, setChallan] = useState<any | null>(null);
 
-  if (isNaN(id)) {
-    notFound();
-  }
+  useEffect(() => {
+    const allChallans = getChallans();
+    const allCustomers = getCustomers();
+    const allPos = getPurchaseOrders();
+    const allProducts = getProducts();
 
-  const { data: challan, error } = await supabase
-    .from('Challan')
-    .select('*, customer:Customer(*), po:PurchaseOrder(*), items:ChallanItem(*, product:Product(*))')
-    .eq('id', id)
-    .single();
-
-  if (error || !challan) {
-    notFound();
-  }
-
+    const currentChallan = allChallans.find(c => c.id === id);
+    if (currentChallan) {
+      setChallan({
+        ...currentChallan,
+        customer: allCustomers.find(c => c.id === currentChallan.customer_id) || { customer_name: 'Unknown', address: '', phone: '', vendor_code: '' },
+        po: allPos.find(p => p.id === currentChallan.po_id) || { po_number: 'Unknown' },
+        items: currentChallan.items.map(item => ({
+          ...item,
+          product: allProducts.find(p => p.id === item.product_id) || { product_name: 'Unknown', product_code: '' }
+        }))
+      });
+    }
+  }, [id]);
 
   if (!challan) {
-    notFound();
+    return (
+      <div className="animate-fade-in" style={{ padding: '2rem', textAlign: 'center' }}>
+        <h2>GDN Not Found</h2>
+        <p style={{ color: '#64748b', marginTop: '0.5rem' }}>The requested Goods Delivery Note could not be loaded.</p>
+        <Link href="/delivery" className="btn btn-primary" style={{ marginTop: '1.5rem', display: 'inline-flex' }}>Back to Delivery</Link>
+      </div>
+    );
   }
 
   return (
@@ -229,7 +243,7 @@ export default async function GDNDetailsPage({ params }: { params: Promise<{ id:
               </thead>
               <tbody>
                 {challan.items.map((item: any, index: number) => (
-                  <tr key={item.id}>
+                  <tr key={item.id || item.product_id || index}>
                     <td>{index + 1}</td>
                     <td style={{ fontWeight: 600 }}>{item.product.product_name}</td>
                     <td>{item.product.product_code}</td>
@@ -303,7 +317,7 @@ export default async function GDNDetailsPage({ params }: { params: Promise<{ id:
             </thead>
             <tbody>
               {challan.items.map((item: any, index: number) => (
-                <tr key={item.id} className={index % 2 === 0 ? "even" : "odd"}>
+                <tr key={item.id || item.product_id || index} className={index % 2 === 0 ? "even" : "odd"}>
                   <td style={{ textAlign: 'left', paddingLeft: '15px' }}>{item.product.product_name}</td>
                   <td>{item.product.product_code || '-'}</td>
                   <td>{item.delivered_qty}</td>

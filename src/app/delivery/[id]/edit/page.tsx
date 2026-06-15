@@ -1,15 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import GDNForm from './GDNForm';
+import { useState, useEffect, use } from 'react';
+import GDNForm from '../../new/GDNForm';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
-import { getPurchaseOrders, PurchaseOrder, getCustomers, Customer, getProducts, Product, getChallans } from '@/lib/mockDb';
+import { getPurchaseOrders, getCustomers, getProducts, getChallans, Challan } from '@/lib/mockDb';
 
-export default function NewGDNPage() {
+export default function EditGDNPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const resolvedParams = use(params);
   const [pos, setPOs] = useState<any[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [challan, setChallan] = useState<Challan | null>(null);
 
   useEffect(() => {
     const allPos = getPurchaseOrders();
@@ -17,12 +21,11 @@ export default function NewGDNPage() {
     const allProducts = getProducts();
     const allChallans = getChallans();
 
-    setCustomers(allCustomers);
-    setProducts(allProducts);
+    const currentChallan = allChallans.find(c => c.id === parseInt(resolvedParams.id, 10));
+    setChallan(currentChallan || null);
 
-    // Calculate pending POs
+    // Calculate pending POs (same logic as New GDN page)
     const enrichedPOs = allPos.map(po => {
-      // Find all delivered items for this PO
       const deliveredMap: Record<number, number> = {};
       allChallans.filter(c => c.po_id === po.id).forEach(c => {
         c.items.forEach(i => {
@@ -47,14 +50,24 @@ export default function NewGDNPage() {
     });
 
     setPOs(enrichedPOs);
-  }, []);
+  }, [resolvedParams.id]);
+
+  if (!challan) {
+    return (
+      <div className="animate-fade-in" style={{ padding: '2rem', textAlign: 'center' }}>
+        <h2>GDN Not Found</h2>
+        <p style={{ color: '#64748b', marginTop: '0.5rem' }}>The requested Goods Delivery Note could not be loaded.</p>
+        <Link href="/delivery" className="btn btn-primary" style={{ marginTop: '1.5rem', display: 'inline-flex' }}>Back to Delivery</Link>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in">
       <header className="header">
         <div className="page-title">
-          <h1>Generate Goods Delivery Note (GDN)</h1>
-          <p>Create a new challan for shipping products to customers.</p>
+          <h1>Edit Goods Delivery Note (GDN)</h1>
+          <p>Update details for {challan.gdn_number}</p>
         </div>
         <div className="header-actions">
           <Link href="/delivery" className="btn" style={{ background: 'white', border: '1px solid var(--border)' }}>
@@ -64,7 +77,7 @@ export default function NewGDNPage() {
         </div>
       </header>
 
-      <GDNForm pendingPOs={pos} />
+      <GDNForm pendingPOs={pos} initialData={challan} />
     </div>
   );
 }

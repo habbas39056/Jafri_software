@@ -1,50 +1,62 @@
-import { supabase } from '@/lib/supabase';
+'use client';
+
+import { useState, useEffect, use } from 'react';
 import { Plus, Search, FileText, Download, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 import InvoiceSearch from '@/components/InvoiceSearch';
 import InvoiceActions from '@/components/InvoiceActions';
+import { getInvoices, Invoice, getCustomers, Customer, getPurchaseOrders, PurchaseOrder } from '@/lib/mockDb';
 
-export default async function InvoicesPage({
+export default function InvoicesPage({
   searchParams,
 }: {
   searchParams: Promise<{ q?: string; customer?: string; status?: string }> | { q?: string; customer?: string; status?: string };
 }) {
-  const resolvedSearchParams = await searchParams;
+  const resolvedSearchParams = searchParams instanceof Promise ? use(searchParams as Promise<any>) : searchParams;
   const query = resolvedSearchParams?.q || '';
   const customerId = resolvedSearchParams?.customer || '';
   const status = resolvedSearchParams?.status || '';
 
-  let invoices: any[] = [];
-  let customers: any[] = [];
-  
-  try {
-    // Fetch customers for filter
-    const { data: customerData } = await supabase.from('Customer').select('id, customer_name').order('customer_name');
-    customers = customerData || [];
+  const [invoices, setInvoices] = useState<(Invoice & { customer?: Customer; po?: PurchaseOrder })[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
-    let supabaseQuery = supabase
-      .from('Invoice')
-      .select('*, customer:Customer(*), po:PurchaseOrder(*)')
-      .order('invoice_date', { ascending: false });
+  useEffect(() => {
+    try {
+      const allInvoices = getInvoices();
+      const allCustomers = getCustomers();
+      const allPos = getPurchaseOrders();
+      setCustomers(allCustomers);
 
-    if (query) {
-      supabaseQuery = supabaseQuery.or(`invoice_number.ilike.%${query}%,customer(customer_name).ilike.%${query}%,po(po_number).ilike.%${query}%`);
+      let data = allInvoices.map(inv => ({
+        ...inv,
+        customer: allCustomers.find(c => c.id === inv.customer_id),
+        po: allPos.find(p => p.id === inv.po_id)
+      }));
+
+      if (query) {
+        const lowerQuery = query.toLowerCase();
+        data = data.filter(inv => 
+          inv.invoice_number.toLowerCase().includes(lowerQuery) ||
+          inv.customer?.customer_name.toLowerCase().includes(lowerQuery) ||
+          inv.po?.po_number.toLowerCase().includes(lowerQuery)
+        );
+      }
+
+      if (customerId) {
+        data = data.filter(inv => inv.customer_id.toString() === customerId);
+      }
+
+      if (status) {
+        data = data.filter(inv => inv.status.toLowerCase() === status.toLowerCase());
+      }
+
+      data.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      setInvoices(data);
+    } catch (e: any) {
+      setError(e.message || "Could not fetch from local storage.");
     }
-
-    if (customerId) {
-      supabaseQuery = supabaseQuery.eq('customer_id', customerId);
-    }
-
-    if (status) {
-      supabaseQuery = supabaseQuery.eq('status', status);
-    }
-
-    const { data, error } = await supabaseQuery;
-    if (error) throw error;
-    invoices = data || [];
-  } catch (error) {
-    console.error('Supabase error in InvoicesPage:', error);
-  }
+  }, [query, customerId, status]);
 
   return (
     <div className="animate-fade-in">
@@ -100,11 +112,11 @@ export default async function InvoicesPage({
             </tr>
           </thead>
           <tbody>
-            {invoices.length > 0 ? invoices.map((invoice) => (
+            {!error && invoices.length > 0 ? invoices.map((invoice) => (
               <tr key={invoice.id}>
                 <td style={{ fontWeight: 600 }}>{invoice.invoice_number}</td>
-                <td>{invoice.customer.customer_name}</td>
-                <td>{invoice.po.po_number}</td>
+                <td>{invoice.customer?.customer_name || 'Unknown'}</td>
+                <td>{invoice.po?.po_number || 'Unknown'}</td>
                 <td>{new Date(invoice.invoice_date).toLocaleDateString()}</td>
                 <td>PKR {invoice.subtotal.toLocaleString()}</td>
                 <td>PKR {invoice.gst_amount.toLocaleString()}</td>

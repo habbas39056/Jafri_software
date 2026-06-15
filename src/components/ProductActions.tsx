@@ -1,7 +1,7 @@
 'use client';
 
 import { Trash2, Edit3 } from 'lucide-react';
-import { deleteProduct } from '@/app/products/actions';
+import { deleteProductDb } from '@/lib/mockDb';
 import { useTransition } from 'react';
 import Link from 'next/link';
 
@@ -10,11 +10,9 @@ export default function ProductActions({ id }: { id: number }) {
 
   const handleDelete = () => {
     if (confirm('Are you sure you want to delete this product?')) {
-      startTransition(async () => {
-        const result = await deleteProduct(id);
-        if (result?.error) {
-          alert(result.error);
-        }
+      startTransition(() => {
+        deleteProductDb(id);
+        window.location.reload();
       });
     }
   };

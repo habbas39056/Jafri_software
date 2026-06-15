@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { createChallan } from '@/app/delivery/actions';
+import { useState, useEffect } from 'react';
+import { saveChallan, updateChallanDb, Challan } from '@/lib/mockDb';
 import { Truck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -22,20 +22,36 @@ type PO = {
   }[];
 };
 
-export default function GDNForm({ pendingPOs }: { pendingPOs: PO[] }) {
+export default function GDNForm({ pendingPOs, initialData }: { pendingPOs: PO[], initialData?: Challan }) {
   const router = useRouter();
-  const [selectedPOId, setSelectedPOId] = useState<string>('');
+  const [selectedPOId, setSelectedPOId] = useState<string>(initialData ? initialData.po_id.toString() : '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   
   const [gdnDetails, setGdnDetails] = useState({
-    gdn_number: `GDN-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
-    challan_date: new Date().toISOString().split('T')[0]
+    gdn_number: initialData ? initialData.gdn_number : '',
+    challan_date: initialData ? new Date(initialData.challan_date).toISOString().split('T')[0] : ''
   });
+
+  useEffect(() => {
+    if (!initialData) {
+      setGdnDetails(prev => ({
+        ...prev,
+        gdn_number: prev.gdn_number || `GDN-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+        challan_date: prev.challan_date || new Date().toISOString().split('T')[0]
+      }));
+    }
+  }, [initialData]);
 
   const selectedPO = pendingPOs.find(po => po.id.toString() === selectedPOId);
 
-  const [deliveryItems, setDeliveryItems] = useState<{product_id: number, qty: number, max: number}[]>([]);
+  const [deliveryItems, setDeliveryItems] = useState<{product_id: number, qty: number, max: number}[]>(
+    initialData ? initialData.items.map(item => ({
+      product_id: item.product_id,
+      qty: item.delivered_qty,
+      max: item.delivered_qty // For edit mode, max could be more complex, but keeping it simple for testing
+    })) : []
+  );
 
   const handlePOSelect = (poId: string) => {
     setSelectedPOId(poId);
@@ -60,7 +76,7 @@ export default function GDNForm({ pendingPOs }: { pendingPOs: PO[] }) {
     ));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPO) return;
     setIsSubmitting(true);
@@ -76,27 +92,37 @@ export default function GDNForm({ pendingPOs }: { pendingPOs: PO[] }) {
 
     // Validation check for over-delivery
     for (const item of validItems) {
-      if (item.qty > item.max) {
+      if (item.qty > item.max && !initialData) {
         setError(`Cannot deliver more than pending quantity (${item.max}) for product ID ${item.product_id}`);
         setIsSubmitting(false);
         return;
       }
     }
 
-    const payload = {
-      gdn_number: gdnDetails.gdn_number,
-      po_id: selectedPO.id,
-      customer_id: selectedPO.customer_id,
-      challan_date: gdnDetails.challan_date,
-      items: validItems.map(i => ({
-        product_id: i.product_id,
-        delivered_qty: i.qty
-      }))
-    };
+    try {
+      const payload = {
+        gdn_number: gdnDetails.gdn_number,
+        po_id: selectedPO.id,
+        customer_id: selectedPO.customer_id,
+        challan_date: gdnDetails.challan_date,
+        status: initialData ? initialData.status : 'Delivered',
+        items: validItems.map((i, index) => ({
+          id: initialData?.items[index]?.id || Date.now() + index, // Mock ID for testing
+          challan_id: initialData?.id || 0,
+          product_id: i.product_id,
+          delivered_qty: i.qty
+        }))
+      };
 
-    const res = await createChallan(payload);
-    if (res?.error) {
-      setError(res.error);
+      if (initialData) {
+        updateChallanDb(initialData.id, payload);
+      } else {
+        saveChallan(payload);
+      }
+      
+      router.push('/delivery');
+    } catch (err: any) {
+      setError(err.message || 'Failed to save delivery note');
       setIsSubmitting(false);
     }
   };

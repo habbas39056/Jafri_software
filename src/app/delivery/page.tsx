@@ -1,17 +1,38 @@
-import { supabase } from '@/lib/supabase';
+'use client';
+
+import { useState, useEffect } from 'react';
 import { Plus, Truck, Calendar, FileText } from 'lucide-react';
 import Link from 'next/link';
 import ChallanActions from '@/components/ChallanActions';
+import { getChallans, getCustomers, getPurchaseOrders, getProducts, Challan, Customer, PurchaseOrder, Product } from '@/lib/mockDb';
 
-export default async function DeliveryPage() {
-  const { data: challansData, error } = await supabase
-    .from('Challan')
-    .select('*, customer:Customer(*), po:PurchaseOrder(*), items:ChallanItem(*, product:Product(*))')
-    .order('challan_date', { ascending: false });
+export default function DeliveryPage() {
+  const [challans, setChallans] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
-  const challans = (challansData || []) as any[];
+  useEffect(() => {
+    try {
+      const allChallans = getChallans();
+      const customers = getCustomers();
+      const pos = getPurchaseOrders();
+      const products = getProducts();
 
-
+      const enrichedChallans = allChallans.map(challan => ({
+        ...challan,
+        customer: customers.find(c => c.id === challan.customer_id) || { customer_name: 'Unknown' },
+        po: pos.find(p => p.id === challan.po_id) || { po_number: 'Unknown' },
+        items: challan.items.map(item => ({
+          ...item,
+          product: products.find(p => p.id === item.product_id) || { product_name: 'Unknown' }
+        }))
+      }));
+      
+      enrichedChallans.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      setChallans(enrichedChallans);
+    } catch (e: any) {
+      setError(e.message || "Failed to load challans");
+    }
+  }, []);
   return (
     <div className="animate-fade-in">
       <header className="header">
@@ -69,9 +90,9 @@ export default async function DeliveryPage() {
               <Link href={`/delivery/${challan.id}`} className="btn" style={{ flex: '1 1 100px', border: '1px solid var(--border)', background: 'white', textAlign: 'center' }}>
                 View & Print GDN
               </Link>
-              <button className="btn btn-primary" style={{ flex: '1 1 100px' }}>
+              <Link href="/invoices/new" className="btn btn-primary" style={{ flex: '1 1 100px', textAlign: 'center', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px' }}>
                 <FileText size={16} /> Create Invoice
-              </button>
+              </Link>
               <ChallanActions id={challan.id} />
             </div>
           </div>

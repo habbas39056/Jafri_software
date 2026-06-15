@@ -1,28 +1,51 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Trash2, Save } from 'lucide-react';
-import { createPurchaseOrder } from '../actions';
+import { savePurchaseOrder, updatePurchaseOrderDb } from '@/lib/mockDb';
+import { useRouter } from 'next/navigation';
 
 export default function POForm({ 
   customers, 
-  products 
+  products,
+  initialData
 }: { 
   customers: any[], 
-  products: any[] 
+  products: any[],
+  initialData?: any
 }) {
+  const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   
   const [poDetails, setPoDetails] = useState({
-    po_number: `PO-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
-    customer_id: '',
-    po_date: new Date().toISOString().split('T')[0],
-    due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    gst_percentage: 18.0
+    po_number: initialData?.po_number || '',
+    customer_id: initialData?.customer_id?.toString() || '',
+    po_date: initialData?.po_date ? new Date(initialData.po_date).toISOString().split('T')[0] : '',
+    due_date: initialData?.due_date ? new Date(initialData.due_date).toISOString().split('T')[0] : '',
+    status: initialData?.status || 'Pending',
+    gst_percentage: initialData?.gst_percentage || 18.0
   });
 
-  const [items, setItems] = useState([{ product_id: '', code: '', quantity: 1, rate: 0, total_amount: 0 }]);
+  useEffect(() => {
+    if (!initialData) {
+      setPoDetails(prev => ({
+        ...prev,
+        po_number: prev.po_number || `PO-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+        po_date: prev.po_date || new Date().toISOString().split('T')[0],
+        due_date: prev.due_date || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      }));
+    }
+  }, [initialData]);
+
+  const [items, setItems] = useState(initialData?.items && initialData.items.length > 0 ? initialData.items.map((item: any) => {
+    const p = products.find((prod: any) => prod.id === item.product_id);
+    return {
+      ...item,
+      product_id: item.product_id.toString(),
+      code: p?.product_code || ''
+    };
+  }) : [{ product_id: '', code: '', quantity: 1, rate: 0, total_amount: 0 }]);
 
   const handleProductSelect = (index: number, productId: string) => {
     const product = products.find(p => p.id.toString() === productId);
@@ -58,7 +81,7 @@ export default function POForm({
   };
 
   const removeItem = (index: number) => {
-    setItems(items.filter((_, i) => i !== index));
+    setItems(items.filter((_item: any, i: number) => i !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -72,33 +95,43 @@ export default function POForm({
       return;
     }
 
-    const validItems = items.filter(item => item.product_id !== '' && item.quantity > 0);
+    const validItems = items.filter((item: any) => item.product_id !== '' && item.quantity > 0);
     if (validItems.length === 0) {
       setError('Please add at least one valid product to the order.');
       setIsSubmitting(false);
       return;
     }
 
-    const formattedItems = validItems.map(item => ({
+    const formattedItems = validItems.map((item: any) => ({
       product_id: parseInt(item.product_id),
       quantity: item.quantity,
       rate: item.rate,
       total_amount: item.total_amount
     }));
 
-    const result = await createPurchaseOrder({
-      ...poDetails,
-      customer_id: parseInt(poDetails.customer_id),
-      items: formattedItems
-    });
-
-    if (result?.error) {
-      setError(result.error);
+    try {
+      if (initialData?.id) {
+        updatePurchaseOrderDb(initialData.id, {
+          ...poDetails,
+          customer_id: parseInt(poDetails.customer_id),
+          items: formattedItems
+        });
+      } else {
+        savePurchaseOrder({
+          ...poDetails,
+          customer_id: parseInt(poDetails.customer_id),
+          status: 'Pending',
+          items: formattedItems
+        });
+      }
+      router.push('/purchase-orders');
+    } catch (err: any) {
+      setError(err.message || 'Failed to save PO to local storage');
       setIsSubmitting(false);
     }
   };
 
-  const subtotal = items.reduce((sum, item) => sum + item.total_amount, 0);
+  const subtotal = items.reduce((sum: number, item: any) => sum + item.total_amount, 0);
   const gstAmount = (subtotal * poDetails.gst_percentage) / 100;
   const grandTotal = subtotal + gstAmount;
 
@@ -186,7 +219,7 @@ export default function POForm({
           </div>
 
           <div style={{ display: 'grid', gap: '1rem' }}>
-            {items.map((item, index: number) => (
+            {items.map((item: any, index: number) => (
               <div key={index} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 0.8fr 1fr 1fr auto', gap: '1rem', alignItems: 'end', background: 'var(--background)', padding: '1rem', borderRadius: 'var(--radius)' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>Product</label>

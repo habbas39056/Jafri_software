@@ -1,33 +1,55 @@
-import { supabase } from '@/lib/supabase';
+'use client';
+
+import { useState, useEffect, use } from 'react';
 import { Plus, Search, ShieldCheck, Download, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import WarrantySearch from '@/components/WarrantySearch';
+import { getWarranties, getCustomers, getInvoices, getChallans, getPurchaseOrders } from '@/lib/mockDb';
 
-export default async function WarrantiesPage({
+export default function WarrantiesPage({
   searchParams,
 }: {
   searchParams: Promise<{ q?: string }> | { q?: string };
 }) {
-  const resolvedSearchParams = await searchParams;
+  const resolvedSearchParams = use(searchParams as Promise<{ q?: string }>);
   const query = resolvedSearchParams?.q || '';
 
-  let warranties: any[] = [];
-  try {
-    let supabaseQuery = supabase
-      .from('Warranty')
-      .select('*, customer:Customer(*), invoice:Invoice(*, po:PurchaseOrder(*)), po:PurchaseOrder(*)')
-      .order('id', { ascending: false });
+  const [warranties, setWarranties] = useState<any[]>([]);
+
+  useEffect(() => {
+    const allWarranties = getWarranties();
+    const allCustomers = getCustomers();
+    const allInvoices = getInvoices();
+    const allPOs = getPurchaseOrders();
+    const allChallans = getChallans();
+
+    let formatted = allWarranties.map(w => {
+      const customer = allCustomers.find(c => c.id === w.customer_id) || { customer_name: 'Unknown' };
+      const invoice = allInvoices.find(i => i.id === w.invoice_id) || null;
+      const challan = allChallans.find(c => c.id === w.challan_id) || null;
+      const po = invoice ? allPOs.find(p => p.id === invoice.po_id) : (challan ? allPOs.find(p => p.id === challan.po_id) : null);
+
+      return {
+        ...w,
+        customer,
+        invoice: invoice ? { ...invoice, po } : null,
+        po,
+        status: new Date(w.end_date) > new Date() ? 'Active' : 'Expired'
+      };
+    });
 
     if (query) {
-      supabaseQuery = supabaseQuery.or(`warranty_number.ilike.%${query}%,customer(customer_name).ilike.%${query}%,po(po_number).ilike.%${query}%`);
+      const q = query.toLowerCase();
+      formatted = formatted.filter(w => 
+        w.warranty_number.toLowerCase().includes(q) ||
+        w.customer.customer_name.toLowerCase().includes(q) ||
+        (w.po?.po_number || '').toLowerCase().includes(q)
+      );
     }
 
-    const { data, error } = await supabaseQuery;
-    if (error) throw error;
-    warranties = data || [];
-  } catch (error) {
-    console.error('Supabase error in WarrantiesPage:', error);
-  }
+    formatted.sort((a, b) => b.id - a.id);
+    setWarranties(formatted);
+  }, [query]);
 
   return (
     <div className="animate-fade-in">
@@ -85,7 +107,7 @@ export default async function WarrantiesPage({
                     </span>
                   </td>
                   <td>{warranty.customer.customer_name}</td>
-                  <td>{warranty.invoice?.po?.po_number || (warranty as any).po?.po_number || '-'}</td>
+                  <td>{warranty.invoice?.po?.po_number || warranty.po?.po_number || '-'}</td>
                   <td>{new Date(warranty.end_date).toLocaleDateString()}</td>
                   <td>
                     <span className={`badge badge-${warranty.status.toLowerCase()}`}>
@@ -105,7 +127,7 @@ export default async function WarrantiesPage({
                 </tr>
               )) : (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>
                     No warranties found.
                   </td>
                 </tr>
