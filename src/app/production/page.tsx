@@ -1,41 +1,52 @@
-import { supabase } from '@/lib/supabase';
+'use client';
+
+import { useState, useEffect, use } from 'react';
 import { Factory, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 import UpdateProductionBtn from '@/components/UpdateProductionBtn';
 import ProductionSearch from '@/components/ProductionSearch';
+import { getCustomers, Customer } from '@/lib/mockDb';
 
-export default async function ProductionPage({
+export default function ProductionPage({
   searchParams,
 }: {
   searchParams: Promise<{ q?: string; customer?: string; status?: string }> | { q?: string; customer?: string; status?: string };
 }) {
-  const resolvedSearchParams = await searchParams;
+  const resolvedSearchParams = searchParams instanceof Promise ? use(searchParams as Promise<any>) : searchParams;
   const query = resolvedSearchParams?.q || '';
   const customerId = resolvedSearchParams?.customer || '';
   const status = resolvedSearchParams?.status || '';
 
-  // Fetch customers for filter
-  const { data: customerData } = await supabase.from('Customer').select('id, customer_name').order('customer_name');
-  const customers = customerData || [];
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [tracking, setTracking] = useState<any[]>([]);
 
-  let supabaseQuery = supabase
-    .from('ProductionTracking')
-    .select('*, po:PurchaseOrder(*, customer:Customer(*)), product:Product(*)')
-    .order('last_updated', { ascending: false });
+  useEffect(() => {
+    // Fetch customers for filter
+    const custData = getCustomers();
+    setCustomers(custData);
 
-  if (query) {
-    supabaseQuery = supabaseQuery.or(`po(po_number).ilike.%${query}%,product(product_name).ilike.%${query}%`);
-  }
+    // Provide mock tracking data
+    let trackData = [
+      { id: '1', po: { po_number: 'PO-2026-9021', customer: { customer_name: 'Acme Corp' }, po_date: '2026-06-01' }, product: { product_name: 'Industrial Widget A', product_code: 'IW-A-001' }, qty: 500, delivered_qty: 100, rejected_qty: 0, pending_qty: 400, due_date: '2026-06-15', status: 'In Production' },
+      { id: '2', po: { po_number: 'PO-2026-9022', customer: { customer_name: 'Stark Industries' }, po_date: '2026-05-28' }, product: { product_name: 'Arc Reactor Core', product_code: 'ARC-001' }, qty: 10, delivered_qty: 0, rejected_qty: 0, pending_qty: 10, due_date: '2026-06-20', status: 'Pending' },
+      { id: '3', po: { po_number: 'PO-2026-9023', customer: { customer_name: 'Wayne Enterprises' }, po_date: '2026-05-25' }, product: { product_name: 'Kevlar Plating', product_code: 'KV-PL-02' }, qty: 1000, delivered_qty: 1000, rejected_qty: 5, pending_qty: 0, due_date: '2026-06-10', status: 'Completed' },
+    ];
 
-  if (customerId) {
-    supabaseQuery = supabaseQuery.eq('po.customer_id', customerId);
-  }
+    if (query) {
+      const q = query.toLowerCase();
+      trackData = trackData.filter(t => t.po.po_number.toLowerCase().includes(q) || t.product.product_name.toLowerCase().includes(q));
+    }
+    if (customerId) {
+      const custName = custData.find(c => c.id.toString() === customerId)?.customer_name;
+      if (custName) {
+        trackData = trackData.filter(t => t.po.customer.customer_name === custName);
+      }
+    }
+    if (status) {
+      trackData = trackData.filter(t => t.status === status);
+    }
 
-  if (status) {
-    supabaseQuery = supabaseQuery.eq('status', status);
-  }
-
-  const { data: trackingData, error } = await supabaseQuery;
-  const tracking = (trackingData || []) as any[];
+    setTracking(trackData);
+  }, [query, customerId, status]);
 
   return (
     <div className="animate-fade-in">

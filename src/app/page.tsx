@@ -1,3 +1,6 @@
+'use client';
+
+import { useState, useEffect, use } from 'react';
 import { 
   DollarSign, 
   Percent, 
@@ -8,68 +11,55 @@ import {
   Sparkles,
   Inbox
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 
 import DashboardFilter from '@/components/DashboardFilter';
+import { getCustomers, Customer } from '@/lib/mockDb';
 
-export default async function Dashboard({
+export default function Dashboard({
   searchParams,
 }: {
   searchParams: Promise<{ customer?: string }> | { customer?: string };
 }) {
-  const resolvedSearchParams = await searchParams;
+  const resolvedSearchParams = searchParams instanceof Promise ? use(searchParams as Promise<any>) : searchParams;
   const customerId = resolvedSearchParams?.customer || '';
 
-  // Fetch customers for filter
-  const { data: customerData } = await supabase.from('Customer').select('id, customer_name').order('customer_name');
-  const customers = customerData || [];
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [recentOrders, setRecentOrders] = useState<any[]>([]);
 
-  let invoicesQuery = supabase
-    .from('Invoice')
-    .select('*, customer:Customer(*), payments:Payment(*)');
-  
-  if (customerId) {
-    invoicesQuery = invoicesQuery.eq('customer_id', customerId);
-  }
+  useEffect(() => {
+    // Fetch customers for filter
+    const custData = getCustomers();
+    setCustomers(custData);
 
-  const { data: invoicesData } = await invoicesQuery;
-  let invoices = (invoicesData || []) as any[];
-
-  let poQuery = supabase
-    .from('PurchaseOrder')
-    .select('*, customer:Customer(*)')
-    .order('created_at', { ascending: false });
-
-  if (customerId) {
-    poQuery = poQuery.eq('customer_id', customerId);
-  }
-
-  const { data: recentOrdersData } = await poQuery.limit(5);
-  let recentOrders = (recentOrdersData || []) as any[];
-
-  // ---------------------------------------------------------
-  // DUMMY DATA INJECTION FOR VISUAL PREVIEW (Since DB is mocked)
-  // ---------------------------------------------------------
-  if (invoices.length === 0) {
-    invoices = [
+    // DUMMY DATA INJECTION FOR VISUAL PREVIEW (Since DB is mocked)
+    let invs = [
       { id: '1', invoice_number: 'INV-2026-1041', customer: { customer_name: 'Acme Corp' }, total_amount: 125000, gst_amount: 22500, invoice_date: '2026-05-10', payments: [{ amount_paid: 125000 }] },
       { id: '2', invoice_number: 'INV-2026-1042', customer: { customer_name: 'Stark Industries' }, total_amount: 450000, gst_amount: 81000, invoice_date: '2026-05-15', payments: [{ amount_paid: 200000 }] },
       { id: '3', invoice_number: 'INV-2026-1043', customer: { customer_name: 'Wayne Enterprises' }, total_amount: 75000, gst_amount: 13500, invoice_date: '2026-05-20', payments: [] },
       { id: '4', invoice_number: 'INV-2026-1044', customer: { customer_name: 'Globex Corp' }, total_amount: 320000, gst_amount: 57600, invoice_date: '2026-05-22', payments: [] },
       { id: '5', invoice_number: 'INV-2026-1045', customer: { customer_name: 'Soylent Corp' }, total_amount: 95000, gst_amount: 17100, invoice_date: '2026-01-10', payments: [] }, // Overdue
     ];
-  }
 
-  if (recentOrders.length === 0) {
-    recentOrders = [
+    let pos = [
       { id: '1', po_number: 'PO-2026-9021', customer: { customer_name: 'Acme Corp' }, po_date: '2026-06-01', status: 'Pending' },
       { id: '2', po_number: 'PO-2026-9022', customer: { customer_name: 'Stark Industries' }, po_date: '2026-05-28', status: 'Processing' },
       { id: '3', po_number: 'PO-2026-9023', customer: { customer_name: 'Wayne Enterprises' }, po_date: '2026-05-25', status: 'Delivered' },
       { id: '4', po_number: 'PO-2026-9024', customer: { customer_name: 'Globex Corp' }, po_date: '2026-05-24', status: 'Cancelled' },
     ];
-  }
-  // ---------------------------------------------------------
+
+    if (customerId) {
+      // Very basic filtering just to show it works
+      invs = invs.filter(inv => inv.customer.customer_name === customers.find(c => c.id.toString() === customerId)?.customer_name);
+      pos = pos.filter(po => po.customer.customer_name === customers.find(c => c.id.toString() === customerId)?.customer_name);
+    }
+
+    setInvoices(invs);
+    setRecentOrders(pos);
+  }, [customerId]);
+
+
 
   const totalSales = invoices.reduce((sum, inv) => sum + (inv.total_amount || 0), 0);
   const totalGST = invoices.reduce((sum, inv) => sum + (inv.gst_amount || 0), 0);

@@ -22,10 +22,12 @@ import {
 
 import { getActiveUser, setActiveUser, Employee } from '@/lib/mockDb';
 import { useEffect, useState } from 'react';
+import { Menu, X } from 'lucide-react';
 
 export default function Sidebar() {
   const pathname = usePathname();
   const [activeUser, setActiveUserLocal] = useState<Employee | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
   
   useEffect(() => {
     setActiveUserLocal(getActiveUser());
@@ -53,7 +55,45 @@ export default function Sidebar() {
   });
 
   return (
-    <aside className="sidebar">
+    <>
+      {/* Mobile Toggle Button */}
+      <button 
+        className="mobile-sidebar-toggle"
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          display: 'none', // Overridden in CSS for mobile
+          position: 'fixed',
+          top: '1rem',
+          left: '1rem',
+          zIndex: 1000,
+          background: 'var(--primary)',
+          color: 'white',
+          border: 'none',
+          borderRadius: '8px',
+          padding: '0.5rem',
+          cursor: 'pointer',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+        }}
+      >
+        {isOpen ? <X size={24} /> : <Menu size={24} />}
+      </button>
+
+      {/* Backdrop for mobile */}
+      {isOpen && (
+        <div 
+          className="sidebar-backdrop"
+          onClick={() => setIsOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            zIndex: 90,
+            backdropFilter: 'blur(2px)'
+          }}
+        />
+      )}
+
+      <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
       <div className="sidebar-logo">
         <div style={{ 
           background: 'linear-gradient(135deg, var(--primary) 0%, #1d4ed8 100%)', 
@@ -80,6 +120,7 @@ export default function Sidebar() {
                 key={item.href} 
                 href={item.href} 
                 className={`nav-link ${isActive ? 'active' : ''}`}
+                onClick={() => setIsOpen(false)}
               >
                 <item.icon size={18} />
                 <span>{item.label}</span>
@@ -91,15 +132,15 @@ export default function Sidebar() {
         <div style={{ marginTop: 'auto', paddingTop: '2rem', display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
           {activeUser?.role === 'Admin' && (
             <>
-              <Link href="/hr" className={`nav-link ${pathname === '/hr' ? 'active' : ''}`}>
+              <Link href="/hr" className={`nav-link ${pathname === '/hr' ? 'active' : ''}`} onClick={() => setIsOpen(false)}>
                 <Calculator size={18} />
                 <span>HR Module</span>
               </Link>
-              <Link href="/employees" className={`nav-link ${pathname === '/employees' ? 'active' : ''}`}>
+              <Link href="/employees" className={`nav-link ${pathname === '/employees' ? 'active' : ''}`} onClick={() => setIsOpen(false)}>
                 <UserCog size={18} />
                 <span>Employees</span>
               </Link>
-              <Link href="/settings" className={`nav-link ${pathname === '/settings' ? 'active' : ''}`}>
+              <Link href="/settings" className={`nav-link ${pathname === '/settings' ? 'active' : ''}`} onClick={() => setIsOpen(false)}>
                 <Settings size={18} />
                 <span>Settings</span>
               </Link>
@@ -119,5 +160,6 @@ export default function Sidebar() {
         </div>
       </nav>
     </aside>
+    </>
   );
 }
