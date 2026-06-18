@@ -6,7 +6,7 @@ export interface HrConfig {
   renewalDay?: number; // 1-31
 }
 
-export type TransactionType = 'Salary' | 'Commission' | 'Advance' | 'Bonus' | 'Payout';
+export type TransactionType = 'Salary' | 'Commission' | 'Advance' | 'Bonus' | 'Payout' | 'Leave Deduction' | 'Loan Deduction' | 'Overtime' | 'Extra Work';
 
 export interface LedgerTransaction {
   id: string;

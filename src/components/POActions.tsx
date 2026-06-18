@@ -37,7 +37,7 @@ export default function POActions({ id }: { id: number }) {
         }}
         title="Edit PO"
       >
-        <Edit3 size={16} /> Edit
+        <Edit3 size={16} />
       </Link>
       <button 
         className="btn" 
@@ -59,7 +59,7 @@ export default function POActions({ id }: { id: number }) {
         }}
         title="Delete PO"
       >
-        <Trash2 size={16} /> Delete
+        <Trash2 size={16} />
       </button>
     </div>
   );

@@ -355,7 +355,8 @@ h1, h2, h3, h4, h5, h6 {
 .table-container {
   border: 1px solid var(--border);
   border-radius: 16px;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: visible;
   box-shadow: var(--shadow-sm);
   background: rgba(255,255,255,0.5);
   backdrop-filter: blur(10px);
@@ -392,6 +393,9 @@ table tbody td {
   font-size: 0.95rem;
   border-bottom: 1px solid rgba(226, 232, 240, 0.4);
   transition: background-color 0.2s ease;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  max-width: 250px;
 }
 
 [data-theme='dark'] table tbody td {
@@ -490,4 +494,43 @@ table tbody tr:last-child td {
 @media print {
   .sidebar, .header-actions { display: none !important; }
   .main-content { margin-left: 0 !important; padding: 0 !important; max-width: 100% !important; }
+}
+
+/* CUSTOM TOOLTIP FOR ADDRESS */
+.address-tooltip-container {
+  position: relative;
+  display: block;
+  max-width: 100%;
+}
+.address-truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.address-tooltip-text {
+  visibility: hidden;
+  background-color: var(--sidebar);
+  color: var(--sidebar-foreground);
+  text-align: left;
+  border-radius: 8px;
+  padding: 10px 14px;
+  position: absolute;
+  z-index: 100;
+  bottom: 100%; /* Changed from top: 100% to bottom: 100% */
+  left: 0;
+  margin-bottom: 8px; /* Changed from margin-top to margin-bottom */
+  opacity: 0;
+  transition: opacity 0.2s;
+  white-space: normal;
+  width: max-content;
+  max-width: 400px;
+  box-shadow: var(--shadow-lg);
+  font-size: 0.85rem;
+  border: 1px solid var(--border);
+  pointer-events: none;
+}
+.address-tooltip-container:hover .address-tooltip-text {
+  visibility: visible;
+  opacity: 1;
 }

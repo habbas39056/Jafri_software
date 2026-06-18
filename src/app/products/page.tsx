@@ -17,6 +17,7 @@ export default function ProductsPage({
 
   const [products, setProducts] = useState<Product[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -75,7 +76,10 @@ export default function ProductsPage({
                 <img 
                   src={product.image_url} 
                   alt={product.product_name} 
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer', transition: 'transform 0.2s ease' }} 
+                  onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                  onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                  onClick={() => setZoomedImage(product.image_url!)}
                 />
               ) : (
                 <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#cbd5e1' }}>
@@ -149,6 +153,57 @@ export default function ProductsPage({
           </div>
         )}
       </div>
+
+      {zoomedImage && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '2rem',
+            backdropFilter: 'blur(4px)'
+          }}
+          onClick={() => setZoomedImage(null)}
+        >
+          <img 
+            src={zoomedImage} 
+            alt="Zoomed product" 
+            style={{ 
+              maxWidth: '100%', 
+              maxHeight: '100%', 
+              objectFit: 'contain',
+              borderRadius: '12px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+            }} 
+            onClick={(e) => e.stopPropagation()} /* Prevent closing when clicking the image itself */
+          />
+          <button
+            style={{
+              position: 'absolute',
+              top: '20px',
+              right: '20px',
+              background: 'white',
+              color: 'black',
+              border: 'none',
+              borderRadius: '50%',
+              width: '40px',
+              height: '40px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
+            }}
+            onClick={() => setZoomedImage(null)}
+          >
+            <span style={{ fontSize: '24px', fontWeight: 'bold', lineHeight: 1 }}>&times;</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

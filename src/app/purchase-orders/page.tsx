@@ -83,11 +83,13 @@ export default function PurchaseOrdersPage({
           <thead>
             <tr>
               <th>PO Number</th>
-              <th>Date</th>
-              <th>Due Date</th>
               <th>Customer</th>
-              <th>Status</th>
-              <th>Action</th>
+              <th>Date</th>
+              <th>Items</th>
+              <th>Product Code</th>
+              <th>Due Date</th>
+              <th style={{ textAlign: 'center' }}>Status</th>
+              <th style={{ textAlign: 'right' }}>Action</th>
             </tr>
           </thead>
           <tbody>

@@ -35,6 +35,34 @@ function EmployeeCard({
   const [saveStatus, setSaveStatus] = useState('');
   const [txStatus, setTxStatus] = useState('');
 
+  const [salaryForm, setSalaryForm] = useState({
+    monthlySalary: config.baseSalary || 0,
+    workingDays: 30,
+    workingHours: 8,
+    leaveDays: 0,
+    advances: 0,
+    personalLoan: 0,
+    overtimeHours: 0,
+    extraWork: 0
+  });
+
+  const dailyRate = salaryForm.monthlySalary / (salaryForm.workingDays || 30);
+  const hourlyRate = dailyRate / (salaryForm.workingHours || 8);
+  
+  const calculatedLeaveDeduction = Math.round(salaryForm.leaveDays * dailyRate);
+  const calculatedOvertime = Math.round(salaryForm.overtimeHours * hourlyRate);
+
+  useEffect(() => {
+    setSalaryForm(prev => ({ ...prev, monthlySalary: config.baseSalary || 0 }));
+  }, [config.baseSalary]);
+
+  const amountPaid = salaryForm.monthlySalary 
+    - calculatedLeaveDeduction 
+    - salaryForm.advances 
+    - salaryForm.personalLoan 
+    + calculatedOvertime 
+    + salaryForm.extraWork;
+
   const handleSaveConfig = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -104,6 +132,52 @@ function EmployeeCard({
     setTxStatus('Transaction logged successfully!');
     setTimeout(() => setTxStatus(''), 3000);
     onRefresh();
+  };
+
+  const handleProcessSalary = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (confirm(`Process salary and payout PKR ${amountPaid.toLocaleString()}? This will record all deductions and additions.`)) {
+      // 1. Record Base Salary
+      addLedgerTransaction({
+        employeeId: emp.id,
+        type: 'Salary',
+        amount: salaryForm.monthlySalary,
+        description: `Monthly Salary`
+      });
+      
+      // 2. Deductions
+      if (calculatedLeaveDeduction > 0) addLedgerTransaction({ employeeId: emp.id, type: 'Leave Deduction', amount: -calculatedLeaveDeduction, description: `Leaves Deduction (${salaryForm.leaveDays} days @ ${dailyRate.toFixed(0)}/day)` });
+      if (salaryForm.advances > 0) addLedgerTransaction({ employeeId: emp.id, type: 'Advance', amount: -salaryForm.advances, description: 'Advance Recovery' });
+      if (salaryForm.personalLoan > 0) addLedgerTransaction({ employeeId: emp.id, type: 'Loan Deduction', amount: -salaryForm.personalLoan, description: 'Personal Loan Installment' });
+      
+      // 3. Additions
+      if (calculatedOvertime > 0) addLedgerTransaction({ employeeId: emp.id, type: 'Overtime', amount: calculatedOvertime, description: `Overtime Pay (${salaryForm.overtimeHours} hours @ ${hourlyRate.toFixed(0)}/hr)` });
+      if (salaryForm.extraWork > 0) addLedgerTransaction({ employeeId: emp.id, type: 'Extra Work', amount: salaryForm.extraWork, description: 'Extra Work Pay' });
+
+      // 4. Record Payout
+      if (amountPaid > 0) {
+        addLedgerTransaction({
+          employeeId: emp.id,
+          type: 'Payout',
+          amount: -amountPaid,
+          description: 'Salary Payout'
+        });
+      }
+
+      setTxStatus('Salary processed successfully!');
+      setTimeout(() => setTxStatus(''), 3000);
+      onRefresh();
+      
+      // Reset form fields except monthly salary and working days
+      setSalaryForm(prev => ({
+        ...prev,
+        leaveDays: 0,
+        advances: 0,
+        personalLoan: 0,
+        overtimeHours: 0,
+        extraWork: 0
+      }));
+    }
   };
 
   const handleRecordPayout = (e: React.MouseEvent) => {
@@ -199,7 +273,119 @@ function EmployeeCard({
             </form>
           </div>
 
-          {/* Column 3: Ledger History (Full Width) */}
+          {/* Full Width Salary Calculator */}
+          <div style={{ gridColumn: '1 / -1', background: 'white', border: '1px solid var(--border)', borderRadius: '8px', padding: '1.5rem', marginTop: '1rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+            <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem', color: 'var(--primary)', borderBottom: '2px solid var(--primary-soft)', paddingBottom: '0.5rem' }}>
+              <DollarSign size={18} /> Process Salary Statement
+            </h4>
+            
+            <form onSubmit={handleProcessSalary}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '2rem' }}>
+                
+                {/* Column A: Base & Deductions */}
+                <div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.25rem', fontWeight: 600, color: '#334155' }}>Monthly Salary</label>
+                      <input 
+                        type="number" min="0" required 
+                        value={salaryForm.monthlySalary} 
+                        onChange={e => setSalaryForm({...salaryForm, monthlySalary: Number(e.target.value)})}
+                        style={{ width: '100%', padding: '0.75rem', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '1rem', fontWeight: 600 }} 
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.25rem', fontWeight: 600, color: '#334155' }}>Working Days</label>
+                      <input 
+                        type="number" min="1" required 
+                        value={salaryForm.workingDays} 
+                        onChange={e => setSalaryForm({...salaryForm, workingDays: Number(e.target.value)})}
+                        style={{ width: '100%', padding: '0.75rem', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '1rem', fontWeight: 600 }} 
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.25rem', fontWeight: 600, color: '#334155' }}>Hours/Day</label>
+                      <input 
+                        type="number" min="1" required 
+                        value={salaryForm.workingHours} 
+                        onChange={e => setSalaryForm({...salaryForm, workingHours: Number(e.target.value)})}
+                        style={{ width: '100%', padding: '0.75rem', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '1rem', fontWeight: 600 }} 
+                      />
+                    </div>
+                  </div>
+
+                  <h5 style={{ color: 'var(--danger)', marginBottom: '1rem', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Less (Deductions)</h5>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.75rem' }}>
+                    <label style={{ width: '120px', fontSize: '0.85rem', color: '#64748b' }}>Leaves Taken</label>
+                    <div style={{ display: 'flex', gap: '0.5rem', flex: 1, alignItems: 'center' }}>
+                      <input type="number" step="0.5" min="0" value={salaryForm.leaveDays || ''} onChange={e => setSalaryForm({...salaryForm, leaveDays: Number(e.target.value)})} placeholder="Days (e.g. 2)" style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)' }} />
+                      <span style={{ fontSize: '0.8rem', color: '#94a3b8', minWidth: '80px', textAlign: 'right' }}>
+                        - PKR {calculatedLeaveDeduction.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.75rem' }}>
+                    <label style={{ width: '120px', fontSize: '0.85rem', color: '#64748b' }}>Advances</label>
+                    <div style={{ display: 'flex', gap: '0.5rem', flex: 1, alignItems: 'center' }}>
+                      <input type="number" min="0" value={salaryForm.advances || ''} onChange={e => setSalaryForm({...salaryForm, advances: Number(e.target.value)})} placeholder="Amount" style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)' }} />
+                      <span style={{ fontSize: '0.8rem', color: '#94a3b8', minWidth: '80px', textAlign: 'right' }}>
+                        - PKR {(salaryForm.advances || 0).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.75rem' }}>
+                    <label style={{ width: '120px', fontSize: '0.85rem', color: '#64748b' }}>Personal Loan</label>
+                    <div style={{ display: 'flex', gap: '0.5rem', flex: 1, alignItems: 'center' }}>
+                      <input type="number" min="0" value={salaryForm.personalLoan || ''} onChange={e => setSalaryForm({...salaryForm, personalLoan: Number(e.target.value)})} placeholder="Amount" style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)' }} />
+                      <span style={{ fontSize: '0.8rem', color: '#94a3b8', minWidth: '80px', textAlign: 'right' }}>
+                        - PKR {(salaryForm.personalLoan || 0).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Column B: Additions & Total */}
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <h5 style={{ color: 'var(--success)', marginBottom: '1rem', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Add (Earnings)</h5>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.75rem' }}>
+                    <label style={{ width: '120px', fontSize: '0.85rem', color: '#64748b' }}>Overtime Hours</label>
+                    <div style={{ display: 'flex', gap: '0.5rem', flex: 1, alignItems: 'center' }}>
+                      <input type="number" step="0.5" min="0" value={salaryForm.overtimeHours || ''} onChange={e => setSalaryForm({...salaryForm, overtimeHours: Number(e.target.value)})} placeholder="Hours" style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)' }} />
+                      <span style={{ fontSize: '0.8rem', color: '#94a3b8', minWidth: '80px', textAlign: 'right' }}>
+                        + PKR {calculatedOvertime.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+                    <label style={{ width: '120px', fontSize: '0.85rem', color: '#64748b' }}>Extra Work</label>
+                    <div style={{ display: 'flex', gap: '0.5rem', flex: 1, alignItems: 'center' }}>
+                      <input type="number" min="0" value={salaryForm.extraWork || ''} onChange={e => setSalaryForm({...salaryForm, extraWork: Number(e.target.value)})} placeholder="Amount" style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)' }} />
+                      <span style={{ fontSize: '0.8rem', color: '#94a3b8', minWidth: '80px', textAlign: 'right' }}>
+                        + PKR {(salaryForm.extraWork || 0).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ background: '#f8fafc', padding: '1.5rem', borderRadius: '8px', border: '1px solid var(--border)', textAlign: 'center', marginTop: 'auto' }}>
+                    <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Amount Paid</p>
+                    <h2 style={{ margin: '0.5rem 0 1rem 0', color: amountPaid >= 0 ? 'var(--success)' : 'var(--danger)', fontSize: '2rem' }}>
+                      PKR {amountPaid.toLocaleString()}
+                    </h2>
+                    <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '0.75rem' }}>
+                      <CheckCircle2 size={18} /> Process & Pay
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </form>
+          </div>
+
+          {/* Ledger History (Full Width) */}
           <div style={{ gridColumn: '1 / -1', marginTop: '1rem' }}>
             <h4 style={{ marginBottom: '1rem' }}>Recent Ledger Activity</h4>
             {empTxs.length === 0 ? (

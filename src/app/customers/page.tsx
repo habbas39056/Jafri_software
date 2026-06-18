@@ -81,11 +81,16 @@ export default function CustomersPage({
             {!error && customers.length > 0 ? customers.map((customer) => (
               <tr key={customer.id}>
                 <td style={{ fontWeight: 600 }}>{customer.customer_name}</td>
-                <td style={{ maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{customer.address}</td>
-                <td>{customer.ntn || '-'}</td>
-                <td>{customer.sales_tax_registration || '-'}</td>
-                <td>{customer.vendor_code || '-'}</td>
-                <td>{customer.phone || '-'}</td>
+                <td style={{ maxWidth: '200px', padding: '1.25rem 1.5rem' }}>
+                  <div className="address-tooltip-container">
+                    <div className="address-truncate">{customer.address || '-'}</div>
+                    {customer.address && <div className="address-tooltip-text">{customer.address}</div>}
+                  </div>
+                </td>
+                <td style={{ maxWidth: '150px', wordBreak: 'break-all' }}>{customer.ntn || '-'}</td>
+                <td style={{ maxWidth: '150px', wordBreak: 'break-all' }}>{customer.sales_tax_registration || '-'}</td>
+                <td style={{ maxWidth: '150px', wordBreak: 'break-all' }}>{customer.vendor_code || '-'}</td>
+                <td style={{ maxWidth: '150px', wordBreak: 'break-all' }}>{customer.phone || '-'}</td>
                 <td>{new Date(customer.created_at).toLocaleDateString()}</td>
                 <td>
                   <CustomerActions id={customer.id} />

@@ -38,7 +38,7 @@ export default function ProductActions({ id }: { id: number }) {
           textDecoration: 'none'
         }}
       >
-        <Edit3 size={16} /> Edit
+        <Edit3 size={16} />
       </Link>
 
       <button 
@@ -61,7 +61,7 @@ export default function ProductActions({ id }: { id: number }) {
           opacity: isPending ? 0.5 : 1
         }}
       >
-        <Trash2 size={16} /> Delete
+        <Trash2 size={16} />
       </button>
     </div>
   );
