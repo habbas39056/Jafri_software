@@ -17,12 +17,13 @@ export default function LoginPage() {
     setError('');
 
     const form = e.currentTarget;
-    const email = (form.elements.namedItem('email') as HTMLInputElement).value;
+    const emailInput = (form.elements.namedItem('email') as HTMLInputElement).value;
     const password = (form.elements.namedItem('password') as HTMLInputElement).value;
+    const email = emailInput.trim().toLowerCase();
 
     setTimeout(() => {
       const users = getEmployees();
-      const user = users.find(u => u.email === email && u.password === password);
+      const user = users.find(u => u.email.toLowerCase() === email && u.password === password);
 
       if (user) {
         setActiveUser(user);
